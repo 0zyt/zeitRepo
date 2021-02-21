@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Rush.now.sh</title>
+    <link>http://localhost:1313/</link>
+    <description>Recent content on Rush.now.sh</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <lastBuildDate>Wed, 10 Feb 2021 22:11:56 +0800</lastBuildDate><atom:link href="http://localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>拥塞控制</title>
+      <link>http://localhost:1313/post/congestigon_control/</link>
+      <pubDate>Wed, 10 Feb 2021 22:11:56 +0800</pubDate>
+      
+      <guid>http://localhost:1313/post/congestigon_control/</guid>
+      <description>TCP的两个窗口 RWND ，Receiver Window CWND, Congestion Window RENO Reno的假设 丢包一定因为网络出现拥塞 网络的RTT和带宽不容易变化 将速率减半后一定能清空Buf</description>
+    </item>
+    
+    <item>
+      <title>输入URL后会发生什么</title>
+      <link>http://localhost:1313/post/enterurl/</link>
+      <pubDate>Tue, 02 Feb 2021 13:49:09 +0800</pubDate>
+      
+      <guid>http://localhost:1313/post/enterurl/</guid>
+      <description>输入URL后会发生什么 调用浏览器渲染引擎（譬如V8），解析网络请求，解析执行JS，UI后端渲染 从URL中解析域名，根据域名查询DNS 在浏览器</description>
+    </item>
+    
+  </channel>
+</rss>
