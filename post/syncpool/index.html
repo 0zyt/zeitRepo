@@ -264,22 +264,22 @@
 </span><span class="lnt">16
 </span></code></pre></td>
 <td class="lntd">
-<pre class="chroma"><code class="language-fallback" data-lang="fallback">// pin pins the current goroutine to P, disables preemption and
-// returns poolLocal pool for the P and the P&#39;s id.
-// Caller must call runtime_procUnpin() when done with the pool.
-func (p *Pool) pin() (*poolLocal, int) {
-   pid := runtime_procPin()
-   // In pinSlow we store to local and then to localSize, here we load in opposite order.
-   // Since we&#39;ve disabled preemption, GC cannot happen in between.
-   // Thus here we must observe local at least as large localSize.
-   // We can observe a newer/larger local, it is fine (we must observe its zero-initialized-ness).
-   s := runtime_LoadAcquintptr(&amp;p.localSize) // load-acquire
-   l := p.local                              // load-consume
-   if uintptr(pid) &lt; s {
-      return indexLocal(l, pid), pid
-   }
-   return p.pinSlow()
-}
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// pin pins the current goroutine to P, disables preemption and
+</span><span class="c1">// returns poolLocal pool for the P and the P&#39;s id.
+</span><span class="c1">// Caller must call runtime_procUnpin() when done with the pool.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">Pool</span><span class="p">)</span> <span class="nf">pin</span><span class="p">()</span> <span class="p">(</span><span class="o">*</span><span class="nx">poolLocal</span><span class="p">,</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+   <span class="nx">pid</span> <span class="o">:=</span> <span class="nf">runtime_procPin</span><span class="p">()</span>
+   <span class="c1">// In pinSlow we store to local and then to localSize, here we load in opposite order.
+</span><span class="c1"></span>   <span class="c1">// Since we&#39;ve disabled preemption, GC cannot happen in between.
+</span><span class="c1"></span>   <span class="c1">// Thus here we must observe local at least as large localSize.
+</span><span class="c1"></span>   <span class="c1">// We can observe a newer/larger local, it is fine (we must observe its zero-initialized-ness).
+</span><span class="c1"></span>   <span class="nx">s</span> <span class="o">:=</span> <span class="nf">runtime_LoadAcquintptr</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">p</span><span class="p">.</span><span class="nx">localSize</span><span class="p">)</span> <span class="c1">// load-acquire
+</span><span class="c1"></span>   <span class="nx">l</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">local</span>                              <span class="c1">// load-consume
+</span><span class="c1"></span>   <span class="k">if</span> <span class="nb">uintptr</span><span class="p">(</span><span class="nx">pid</span><span class="p">)</span> <span class="p">&lt;</span> <span class="nx">s</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="nf">indexLocal</span><span class="p">(</span><span class="nx">l</span><span class="p">,</span> <span class="nx">pid</span><span class="p">),</span> <span class="nx">pid</span>
+   <span class="p">}</span>
+   <span class="k">return</span> <span class="nx">p</span><span class="p">.</span><span class="nf">pinSlow</span><span class="p">()</span>
+<span class="p">}</span>
 </code></pre></td></tr></table>
 </div>
 </div><p>先看到<code>pid := runtime_procPin()</code>这个从名字就可以看出，得到一个？进程ID，当前Go语言语境下应该是GMP中的P ID并且防止抢占当的P，然后是<code>s := runtime_LoadAcquintptr(&amp;p.localSize)</code>，看字面意思可知，这里得到是就是local数组的size，<code>l := p.local </code>这里是一个指针，在这个API中，会常常见到指针操作。</p>

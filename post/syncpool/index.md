@@ -54,7 +54,7 @@ func (p *Pool) Put(x interface{}) {
 
 因为race几个函数点进去也没有实现，我也不知道是干嘛的，我们讲讲遇见的第一个调用p.pin()
 
-```
+```go
 // pin pins the current goroutine to P, disables preemption and
 // returns poolLocal pool for the P and the P's id.
 // Caller must call runtime_procUnpin() when done with the pool.
