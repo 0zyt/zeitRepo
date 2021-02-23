@@ -380,7 +380,7 @@ if race.Enabled {
 
 Pin拿poolLocal-> 是否已经初始化->通过pid寻址找->找不到新创建一块
 
-l.private(也是就上面poolLocal.private)是否存在->不存在赋值给private->存在push到l.shared的环形链表
+l.private(也是就上面poolLocal.private)是否存在->不存在赋值给private->存在push到l.shared的环形双向队列
 
 
 
