@@ -6,7 +6,16 @@
     <description>Recent content in Posts on Rush.now.sh</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Mon, 22 Feb 2021 19:55:22 +0800</lastBuildDate><atom:link href="http://localhost:1313/post/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Wed, 24 Feb 2021 15:25:32 +0800</lastBuildDate><atom:link href="http://localhost:1313/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>看看被历史淘汰的多路复用系统调用poll的源码</title>
+      <link>http://localhost:1313/post/syscall_poll/</link>
+      <pubDate>Wed, 24 Feb 2021 15:25:32 +0800</pubDate>
+      
+      <guid>http://localhost:1313/post/syscall_poll/</guid>
+      <description>https://elixir.bootlin.com/linux/latest/source/fs/select.c#L1056 我是在上面这个网址看的Linux 5.11.1版本的源码 开始 映入眼帘的是这个系统调用，这个就是poll的系统调用定义 1 2 3 4 5 6 7 8 9 10 11 12</description>
+    </item>
+    
     <item>
       <title>无内鬼，来点sync.Pool解读</title>
       <link>http://localhost:1313/post/syncpool/</link>
