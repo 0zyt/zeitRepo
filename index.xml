@@ -6,7 +6,25 @@
     <description>Recent content on Rush.now.sh</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Wed, 24 Feb 2021 15:25:32 +0800</lastBuildDate><atom:link href="http://localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Mon, 08 Mar 2021 11:29:41 +0800</lastBuildDate><atom:link href="http://localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>从TCP FAST OPEN看TCP三次握手</title>
+      <link>http://localhost:1313/post/tfo-3way/</link>
+      <pubDate>Mon, 08 Mar 2021 11:29:41 +0800</pubDate>
+      
+      <guid>http://localhost:1313/post/tfo-3way/</guid>
+      <description>TCP三次握手是面试的一个常考点，常常会问：不三次握手行不行？为什么是三次握手不是更多或者更少？ 八股文答案就不说了，网上很多。 但是TCP确实</description>
+    </item>
+    
+    <item>
+      <title>User-Mode Scheduling &amp; Coroutine &amp; Goruntine</title>
+      <link>http://localhost:1313/post/umsandfiber/</link>
+      <pubDate>Sat, 06 Mar 2021 12:15:41 +0800</pubDate>
+      
+      <guid>http://localhost:1313/post/umsandfiber/</guid>
+      <description>今天学习了[Windows文档][https://docs.microsoft.com/zh-cn/windows/win32/procth</description>
+    </item>
+    
     <item>
       <title>看看被历史淘汰的多路复用系统调用poll的源码</title>
       <link>http://localhost:1313/post/syscall_poll/</link>
