@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Posts on Rush.now.sh</title>
+    <title>Posts on Rush.vercel.app</title>
     <link>http://localhost:1313/post/</link>
-    <description>Recent content in Posts on Rush.now.sh</description>
+    <description>Recent content in Posts on Rush.vercel.app</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Mon, 08 Mar 2021 11:29:41 +0800</lastBuildDate><atom:link href="http://localhost:1313/post/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 13 Mar 2021 11:02:47 +0800</lastBuildDate><atom:link href="http://localhost:1313/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>我的志愿改变了，我想当SRE</title>
+      <link>http://localhost:1313/post/iwantsre/</link>
+      <pubDate>Sat, 13 Mar 2021 11:02:47 +0800</pubDate>
+      
+      <guid>http://localhost:1313/post/iwantsre/</guid>
+      <description>2021.3.13，我今天看见一个群里说某大厂急招SRE，我怀着忐忑的心去了解了一下，并投了简历，了解了一下SRE的工作内容和DevOps的</description>
+    </item>
+    
     <item>
       <title>从TCP FAST OPEN看TCP三次握手</title>
       <link>http://localhost:1313/post/tfo-3way/</link>
