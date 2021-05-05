@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <title>Ksm拆解 - Rush.vercel.app</title>
+  <title>kube-state-metrics流程 - Rush.vercel.app</title>
   <meta name="renderer" content="webkit" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
 
@@ -39,13 +39,13 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
 
 
-<meta property="og:title" content="Ksm拆解" />
+<meta property="og:title" content="kube-state-metrics流程" />
 <meta property="og:description" content="核心流程 在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分 1 2 3 4 5 6 7 8 9 10 //main.go 168行 // Run MetricsHandler { ctxMetricsHandler, cancel := context.WithCancel(ctx) g.Add(func() error { return m.Run(ctxMetricsHandler)" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="http://localhost:1313/post/ksm/" />
 <meta property="article:published_time" content="2021-05-05T14:21:49+08:00" />
 <meta property="article:modified_time" content="2021-05-05T14:21:49+08:00" />
-<meta itemprop="name" content="Ksm拆解">
+<meta itemprop="name" content="kube-state-metrics流程">
 <meta itemprop="description" content="核心流程 在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分 1 2 3 4 5 6 7 8 9 10 //main.go 168行 // Run MetricsHandler { ctxMetricsHandler, cancel := context.WithCancel(ctx) g.Add(func() error { return m.Run(ctxMetricsHandler)">
 <meta itemprop="datePublished" content="2021-05-05T14:21:49+08:00" />
 <meta itemprop="dateModified" content="2021-05-05T14:21:49+08:00" />
@@ -55,7 +55,7 @@
 
 <meta itemprop="keywords" content="" />
 <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Ksm拆解"/>
+<meta name="twitter:title" content="kube-state-metrics流程"/>
 <meta name="twitter:description" content="核心流程 在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分 1 2 3 4 5 6 7 8 9 10 //main.go 168行 // Run MetricsHandler { ctxMetricsHandler, cancel := context.WithCancel(ctx) g.Add(func() error { return m.Run(ctxMetricsHandler)"/>
 
 <!--[if lte IE 9]>
@@ -119,7 +119,7 @@
           <article class="post">
     
     <header class="post-header">
-      <h1 class="post-title">Ksm拆解</h1>
+      <h1 class="post-title">kube-state-metrics流程</h1>
 
       <div class="post-meta">
         <span class="post-time"> 2021-05-05 </span>
@@ -1270,7 +1270,7 @@
       <i class="iconfont icon-up"></i>
     </div>
   </div>
-  
+  <script src="/lib/highlight/highlight.pack.js?v=20171001"></script>
   <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
