@@ -45,7 +45,7 @@
 <meta property="og:description" content="my online log." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="http://localhost:1313/" />
-<meta property="og:updated_time" content="2021-03-08T11:29:41+08:00" />
+<meta property="og:updated_time" content="2021-05-05T14:21:49+08:00" />
 <meta itemprop="name" content="Rush.vercel.app">
 <meta itemprop="description" content="my online log.">
 <meta name="twitter:card" content="summary"/>
@@ -111,6 +111,27 @@
       <div class="content-wrapper">
         <div id="content" class="content">
           <section id="posts" class="posts">
+    <article class="post">
+  <header class="post-header">
+    <h1 class="post-title"><a class="post-link" href="/post/ksm/">Ksm拆解</a></h1>
+    <div class="post-meta">
+      <span class="post-time"> 2021-05-05 </span>
+      
+        <span class="more-meta"> 约 3142 字 </span>
+        <span class="more-meta"> 预计阅读 7 分钟 </span>
+    </div>
+  </header>
+  
+  <div class="post-content">
+    <div class="post-summary">
+      核心流程 在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分 1 2 3 4 5 6 7 8 9 10 //main.go 168行 // Run MetricsHandler { ctxMetricsHandler, cancel := context.WithCancel(ctx) g.Add(func() error { return m.Run(ctxMetricsHandler)
+    </div>
+    <div class="read-more">
+      <a href="/post/ksm/" class="read-more-link">阅读更多</a>
+    </div>
+  </div>
+</article>
+
     <article class="post">
   <header class="post-header">
     <h1 class="post-title"><a class="post-link" href="/post/tfo-3way/">从TCP FAST OPEN看TCP三次握手</a></h1>
@@ -191,27 +212,6 @@
     </div>
     <div class="read-more">
       <a href="/post/syncpool/" class="read-more-link">阅读更多</a>
-    </div>
-  </div>
-</article>
-
-    <article class="post">
-  <header class="post-header">
-    <h1 class="post-title"><a class="post-link" href="/post/congestigon_control/">拥塞控制</a></h1>
-    <div class="post-meta">
-      <span class="post-time"> 2021-02-10 </span>
-      
-        <span class="more-meta"> 约 298 字 </span>
-        <span class="more-meta"> 预计阅读 1 分钟 </span>
-    </div>
-  </header>
-  
-  <div class="post-content">
-    <div class="post-summary">
-      TCP的两个窗口 RWND ，Receiver Window CWND, Congestion Window RENO Reno的假设 丢包一定因为网络出现拥塞 网络的RTT和带宽不容易变化 将速率减半后一定能清空Buf
-    </div>
-    <div class="read-more">
-      <a href="/post/congestigon_control/" class="read-more-link">阅读更多</a>
     </div>
   </div>
 </article>
