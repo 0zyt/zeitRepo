@@ -556,4 +556,4 @@ loop:
 
 ## 流程图
 
-![ksm](ksm.png)
+![ksm](/ksm.png)
