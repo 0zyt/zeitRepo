@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html lang="en-us">
+  <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+  
+  <title>Syscall_poll代码解读 - Rush.vercel.app</title>
+
+  
+  
+  <meta name="description" content="https://elixir.bootlin.com/linux/latest/source/fs/select.c#L1056
+我是在上面这个网址看的Linux 5.11.1版本的源码
+开始 映入眼帘的是这个系统调用，这个就是poll的系统调用定义
+SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, 	int, timeout_msecs) { 	struct timespec64 end_time, *to = NULL; 	int ret;  	if (timeout_msecs &gt;= 0) { 	to = &amp;end_time; 	poll_select_set_timeout(to, timeout_msecs / MSEC_PER_SEC, 	NSEC_PER_MSEC * (timeout_msecs % MSEC_PER_SEC)); 	}  	ret = do_sys_poll(ufds, nfds, to);  	if (ret == -ERESTARTNOHAND) { 	struct restart_block *restart_block;  	restart_block = &amp;current-&gt;restart_block; 	restart_block-&gt;fn = do_restart_poll; 	restart_block-&gt;poll." />
+  <meta name="author" content="" />
+  
+
+  
+  
+  
+  
+  
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/app.min.css" />
+
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/an-old-hope.min.css" />
+  <script
+    defer
+    src="https://Rush.vercel.app/highlight.min.js"
+    onload="hljs.initHighlightingOnLoad();"
+  ></script>
+  
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/theme.png" />
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/github.svg" />
+  
+
+  
+  <link rel="icon" href="https://Rush.vercel.app/favicon.ico" />
+  <link rel="apple-touch-icon" href="https://Rush.vercel.app/apple-touch-icon.png" />
+
+  
+  <meta name="generator" content="Hugo 0.100.0-DEV" />
+
+  
+  
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  <meta property="og:title" content="Syscall_poll代码解读" />
+<meta property="og:description" content="https://elixir.bootlin.com/linux/latest/source/fs/select.c#L1056
+我是在上面这个网址看的Linux 5.11.1版本的源码
+开始 映入眼帘的是这个系统调用，这个就是poll的系统调用定义
+SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, 	int, timeout_msecs) { 	struct timespec64 end_time, *to = NULL; 	int ret;  	if (timeout_msecs &gt;= 0) { 	to = &amp;end_time; 	poll_select_set_timeout(to, timeout_msecs / MSEC_PER_SEC, 	NSEC_PER_MSEC * (timeout_msecs % MSEC_PER_SEC)); 	}  	ret = do_sys_poll(ufds, nfds, to);  	if (ret == -ERESTARTNOHAND) { 	struct restart_block *restart_block;  	restart_block = &amp;current-&gt;restart_block; 	restart_block-&gt;fn = do_restart_poll; 	restart_block-&gt;poll." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://Rush.vercel.app/posts/syscall_poll/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2021-02-24T16:25:56+08:00" />
+<meta property="article:modified_time" content="2021-02-24T16:25:56+08:00" />
+
+
+  
+  <meta itemprop="name" content="Syscall_poll代码解读">
+<meta itemprop="description" content="https://elixir.bootlin.com/linux/latest/source/fs/select.c#L1056
+我是在上面这个网址看的Linux 5.11.1版本的源码
+开始 映入眼帘的是这个系统调用，这个就是poll的系统调用定义
+SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, 	int, timeout_msecs) { 	struct timespec64 end_time, *to = NULL; 	int ret;  	if (timeout_msecs &gt;= 0) { 	to = &amp;end_time; 	poll_select_set_timeout(to, timeout_msecs / MSEC_PER_SEC, 	NSEC_PER_MSEC * (timeout_msecs % MSEC_PER_SEC)); 	}  	ret = do_sys_poll(ufds, nfds, to);  	if (ret == -ERESTARTNOHAND) { 	struct restart_block *restart_block;  	restart_block = &amp;current-&gt;restart_block; 	restart_block-&gt;fn = do_restart_poll; 	restart_block-&gt;poll."><meta itemprop="datePublished" content="2021-02-24T16:25:56+08:00" />
+<meta itemprop="dateModified" content="2021-02-24T16:25:56+08:00" />
+<meta itemprop="wordCount" content="1440">
+<meta itemprop="keywords" content="" />
+  
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Syscall_poll代码解读"/>
+<meta name="twitter:description" content="https://elixir.bootlin.com/linux/latest/source/fs/select.c#L1056
+我是在上面这个网址看的Linux 5.11.1版本的源码
+开始 映入眼帘的是这个系统调用，这个就是poll的系统调用定义
+SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, 	int, timeout_msecs) { 	struct timespec64 end_time, *to = NULL; 	int ret;  	if (timeout_msecs &gt;= 0) { 	to = &amp;end_time; 	poll_select_set_timeout(to, timeout_msecs / MSEC_PER_SEC, 	NSEC_PER_MSEC * (timeout_msecs % MSEC_PER_SEC)); 	}  	ret = do_sys_poll(ufds, nfds, to);  	if (ret == -ERESTARTNOHAND) { 	struct restart_block *restart_block;  	restart_block = &amp;current-&gt;restart_block; 	restart_block-&gt;fn = do_restart_poll; 	restart_block-&gt;poll."/>
+
+  
+  
+</head>
+
+
+  <body class="not-ready" data-menu="false">
+    <header class="header">
+  
+  <p class="logo">
+    <a class="site-name" href="https://Rush.vercel.app/">Rush.vercel.app</a><a class="btn-dark"></a>
+  </p>
+  
+
+  <script>
+    let bodyClx = document.body.classList;
+    let btnDark = document.querySelector('.btn-dark');
+    let sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+    let darkVal = localStorage.getItem('dark');
+
+    let setDark = (isDark) => {
+      bodyClx[isDark ? 'add' : 'remove']('dark');
+      localStorage.setItem('dark', isDark ? 'yes' : 'no');
+    };
+
+    setDark(darkVal ? darkVal === 'yes' : sysDark.matches);
+    requestAnimationFrame(() => bodyClx.remove('not-ready'));
+
+    btnDark.addEventListener('click', () => setDark(!bodyClx.contains('dark')));
+    sysDark.addEventListener('change', (event) => setDark(event.matches));
+  </script>
+
+  
+  
+
+  
+  <nav class="social">
+    
+    <a
+      class="github"
+      style="--url: url(./github.svg)"
+      href="https://github.com/https://github.com/Notsetup"
+      target="_blank"
+    ></a>
+    
+  </nav>
+  
+</header>
+
+
+    <main class="main">
+
+<article class="post-single">
+  <header class="post-title">
+    <p>
+      
+      <time>Feb 24, 2021</time>
+      
+      
+    </p>
+    <h1>Syscall_poll代码解读</h1>
+  </header>
+  <section class="post-content"><p><a href="https://elixir.bootlin.com/linux/latest/source/fs/select.c#L1056">https://elixir.bootlin.com/linux/latest/source/fs/select.c#L1056</a></p>
+<p>我是在上面这个网址看的Linux 5.11.1版本的源码</p>
+<h2 id="开始">开始</h2>
+<p>映入眼帘的是这个系统调用，这个就是poll的系统调用定义</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>SYSCALL_DEFINE3(poll, <span style="color:#66d9ef">struct</span> pollfd __user <span style="color:#f92672">*</span>, ufds, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span>, nfds,
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">int</span>, timeout_msecs)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> timespec64 end_time, <span style="color:#f92672">*</span>to <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> ret;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (timeout_msecs <span style="color:#f92672">&gt;=</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>		to <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>end_time;
+</span></span><span style="display:flex;"><span>		poll_select_set_timeout(to, timeout_msecs <span style="color:#f92672">/</span> MSEC_PER_SEC,
+</span></span><span style="display:flex;"><span>			NSEC_PER_MSEC <span style="color:#f92672">*</span> (timeout_msecs <span style="color:#f92672">%</span> MSEC_PER_SEC));
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	ret <span style="color:#f92672">=</span> do_sys_poll(ufds, nfds, to);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (ret <span style="color:#f92672">==</span> <span style="color:#f92672">-</span>ERESTARTNOHAND) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> restart_block <span style="color:#f92672">*</span>restart_block;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		restart_block <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>current<span style="color:#f92672">-&gt;</span>restart_block;
+</span></span><span style="display:flex;"><span>		restart_block<span style="color:#f92672">-&gt;</span>fn <span style="color:#f92672">=</span> do_restart_poll;
+</span></span><span style="display:flex;"><span>		restart_block<span style="color:#f92672">-&gt;</span>poll.ufds <span style="color:#f92672">=</span> ufds;
+</span></span><span style="display:flex;"><span>		restart_block<span style="color:#f92672">-&gt;</span>poll.nfds <span style="color:#f92672">=</span> nfds;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (timeout_msecs <span style="color:#f92672">&gt;=</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>			restart_block<span style="color:#f92672">-&gt;</span>poll.tv_sec <span style="color:#f92672">=</span> end_time.tv_sec;
+</span></span><span style="display:flex;"><span>			restart_block<span style="color:#f92672">-&gt;</span>poll.tv_nsec <span style="color:#f92672">=</span> end_time.tv_nsec;
+</span></span><span style="display:flex;"><span>			restart_block<span style="color:#f92672">-&gt;</span>poll.has_timeout <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>		} <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>			restart_block<span style="color:#f92672">-&gt;</span>poll.has_timeout <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		ret <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>ERESTART_RESTARTBLOCK;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> ret;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>让我看到核心的一行<code>ret = do_sys_poll(ufds, nfds, to);</code>进入这个方法去看</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">do_sys_poll</span>(<span style="color:#66d9ef">struct</span> pollfd __user <span style="color:#f92672">*</span>ufds, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> nfds,
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> timespec64 <span style="color:#f92672">*</span>end_time)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> poll_wqueues table;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> err <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>EFAULT, fdcount, len;
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* Allocate small arguments on the stack to save memory and be
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	   faster - use long to make sure the buffer is aligned properly
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">	   on 64 bit archs to avoid unaligned access */</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">long</span> stack_pps[POLL_STACK_ALLOC<span style="color:#f92672">/</span><span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">long</span>)];
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> poll_list <span style="color:#f92672">*</span><span style="color:#66d9ef">const</span> head <span style="color:#f92672">=</span> (<span style="color:#66d9ef">struct</span> poll_list <span style="color:#f92672">*</span>)stack_pps;
+</span></span><span style="display:flex;"><span> 	<span style="color:#66d9ef">struct</span> poll_list <span style="color:#f92672">*</span>walk <span style="color:#f92672">=</span> head;
+</span></span><span style="display:flex;"><span> 	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> todo <span style="color:#f92672">=</span> nfds;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (nfds <span style="color:#f92672">&gt;</span> rlimit(RLIMIT_NOFILE))
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>EINVAL;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	len <span style="color:#f92672">=</span> min_t(<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span>, nfds, N_STACK_PPS);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> (;;) {
+</span></span><span style="display:flex;"><span>		walk<span style="color:#f92672">-&gt;</span>next <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>		walk<span style="color:#f92672">-&gt;</span>len <span style="color:#f92672">=</span> len;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>len)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (copy_from_user(walk<span style="color:#f92672">-&gt;</span>entries, ufds <span style="color:#f92672">+</span> nfds<span style="color:#f92672">-</span>todo,
+</span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> pollfd) <span style="color:#f92672">*</span> walk<span style="color:#f92672">-&gt;</span>len))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		todo <span style="color:#f92672">-=</span> walk<span style="color:#f92672">-&gt;</span>len;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>todo)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		len <span style="color:#f92672">=</span> min(todo, POLLFD_PER_PAGE);
+</span></span><span style="display:flex;"><span>		walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next <span style="color:#f92672">=</span> kmalloc(struct_size(walk, entries, len),
+</span></span><span style="display:flex;"><span>					    GFP_KERNEL);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>walk) {
+</span></span><span style="display:flex;"><span>			err <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>ENOMEM;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	poll_initwait(<span style="color:#f92672">&amp;</span>table);
+</span></span><span style="display:flex;"><span>	fdcount <span style="color:#f92672">=</span> do_poll(head, <span style="color:#f92672">&amp;</span>table, end_time);
+</span></span><span style="display:flex;"><span>	poll_freewait(<span style="color:#f92672">&amp;</span>table);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>user_write_access_begin(ufds, nfds <span style="color:#f92672">*</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>ufds)))
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> (walk <span style="color:#f92672">=</span> head; walk; walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> pollfd <span style="color:#f92672">*</span>fds <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>entries;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">int</span> j;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">for</span> (j <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>len; j; fds<span style="color:#f92672">++</span>, ufds<span style="color:#f92672">++</span>, j<span style="color:#f92672">--</span>)
+</span></span><span style="display:flex;"><span>			unsafe_put_user(fds<span style="color:#f92672">-&gt;</span>revents, <span style="color:#f92672">&amp;</span>ufds<span style="color:#f92672">-&gt;</span>revents, Efault);
+</span></span><span style="display:flex;"><span>  	}
+</span></span><span style="display:flex;"><span>	user_write_access_end();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	err <span style="color:#f92672">=</span> fdcount;
+</span></span><span style="display:flex;"><span>out_fds:
+</span></span><span style="display:flex;"><span>	walk <span style="color:#f92672">=</span> head<span style="color:#f92672">-&gt;</span>next;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">while</span> (walk) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> poll_list <span style="color:#f92672">*</span>pos <span style="color:#f92672">=</span> walk;
+</span></span><span style="display:flex;"><span>		walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next;
+</span></span><span style="display:flex;"><span>		kfree(pos);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> err;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Efault:
+</span></span><span style="display:flex;"><span>	user_write_access_end();
+</span></span><span style="display:flex;"><span>	err <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>EFAULT;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>我们可以发现定了很多结构体，看看结构体都是怎么定义的</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> poll_wqueues {
+</span></span><span style="display:flex;"><span>	poll_table pt;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> poll_table_page <span style="color:#f92672">*</span>table;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> task_struct <span style="color:#f92672">*</span>polling_task;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> triggered;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> error;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> inline_index;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> poll_table_entry inline_entries[N_INLINE_POLL_ENTRIES];
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> poll_list {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> poll_list <span style="color:#f92672">*</span>next;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> len;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> pollfd entries[];
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>嗯，看名字和定义就可知<code>poll_wqueues</code>是队列，应该是等待队列的意思，<code>poll_list</code>看见next就知道是一个链表。</p>
+<p>看到第一个重要的逻辑,从<code>copy_from_user</code>这个名字就看得出，是从用户态拷贝，把用户态传入的fds数组拷贝到链表中</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (;;) {
+</span></span><span style="display:flex;"><span>		walk<span style="color:#f92672">-&gt;</span>next <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>		walk<span style="color:#f92672">-&gt;</span>len <span style="color:#f92672">=</span> len;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>len)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (copy_from_user(walk<span style="color:#f92672">-&gt;</span>entries, ufds <span style="color:#f92672">+</span> nfds<span style="color:#f92672">-</span>todo,
+</span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> pollfd) <span style="color:#f92672">*</span> walk<span style="color:#f92672">-&gt;</span>len))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		todo <span style="color:#f92672">-=</span> walk<span style="color:#f92672">-&gt;</span>len;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>todo)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		len <span style="color:#f92672">=</span> min(todo, POLLFD_PER_PAGE);
+</span></span><span style="display:flex;"><span>		walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next <span style="color:#f92672">=</span> kmalloc(struct_size(walk, entries, len),
+</span></span><span style="display:flex;"><span>					    GFP_KERNEL);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>walk) {
+</span></span><span style="display:flex;"><span>			err <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>ENOMEM;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><p><code>(walk-&gt;entries, ufds + nfds-todo,sizeof(struct pollfd) * walk-&gt;len))</code>这一块逻辑我开始是没懂的，让我们多看点，了解一下。接下来由很多跳转的函数，下面呈现</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>copy_from_user(<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>to, <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>from, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> n)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (likely(check_copy_size(to, n, false)))
+</span></span><span style="display:flex;"><span>		n <span style="color:#f92672">=</span> _copy_from_user(to, from, n);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> n;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>linux源码中会常常出现likely,unlikely，https://www.cnblogs.com/embedded-linux/p/5943652.html可以参考这篇文章。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#ifdef INLINE_COPY_FROM_USER
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">inline</span> __must_check <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">_copy_from_user</span>(<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>to, <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>from, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> n)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> res <span style="color:#f92672">=</span> n;
+</span></span><span style="display:flex;"><span>	might_fault();
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>should_fail_usercopy() <span style="color:#f92672">&amp;&amp;</span> likely(access_ok(from, n))) {
+</span></span><span style="display:flex;"><span>		instrument_copy_from_user(to, from, n);
+</span></span><span style="display:flex;"><span>		res <span style="color:#f92672">=</span> raw_copy_from_user(to, from, n);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (unlikely(res))
+</span></span><span style="display:flex;"><span>		memset(to <span style="color:#f92672">+</span> (n <span style="color:#f92672">-</span> res), <span style="color:#ae81ff">0</span>, res);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> res;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#else
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">extern</span> __must_check <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">_copy_from_user</span>(<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>, <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span>);
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#endif
+</span></span></span></code></pre></div><p>这里我们可以看到，核心逻辑是第一个if判断，我们的返回值res就在这里得到，让我们看看<code>raw_copy_from_user(to, from, n);</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>raw_copy_to_user(<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>to, <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>from, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> n)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> __copy_user_ll((__force <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>)to, from, n);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">inline</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">copy_from_user</span>(<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>to, <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">void</span> __user <span style="color:#66d9ef">volatile</span> <span style="color:#f92672">*</span>from,
+</span></span><span style="display:flex;"><span>				 <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> n)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	__chk_user_ptr(from, n);
+</span></span><span style="display:flex;"><span>	volatile_memcpy(to, from, n);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>__copy_user_ll</code>的这段代码应该是先做了一个硬件上的判断，Linux里一个上层API，很有可能会有很多的根据不同硬件的实现。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> <span style="color:#a6e22e">__copy_user_ll</span>(<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>to, <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>from, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> n)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	__uaccess_begin_nospec();
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (movsl_is_ok(to, from, n))
+</span></span><span style="display:flex;"><span>		__copy_user(to, from, n);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>		n <span style="color:#f92672">=</span> __copy_user_intel(to, from, n);
+</span></span><span style="display:flex;"><span>	__uaccess_end();
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> n;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">inline</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">copy_from_user</span>(<span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>to, <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">void</span> __user <span style="color:#66d9ef">volatile</span> <span style="color:#f92672">*</span>from,
+</span></span><span style="display:flex;"><span>				 <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> n)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	__chk_user_ptr(from, n);
+</span></span><span style="display:flex;"><span>	volatile_memcpy(to, from, n);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以看到，最后做了一个copy然后返回0，所以不会进goto，回到最开始的函数</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (;;) {
+</span></span><span style="display:flex;"><span>		walk<span style="color:#f92672">-&gt;</span>next <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>		walk<span style="color:#f92672">-&gt;</span>len <span style="color:#f92672">=</span> len;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>len)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (copy_from_user(walk<span style="color:#f92672">-&gt;</span>entries, ufds <span style="color:#f92672">+</span> nfds<span style="color:#f92672">-</span>todo,
+</span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">sizeof</span>(<span style="color:#66d9ef">struct</span> pollfd) <span style="color:#f92672">*</span> walk<span style="color:#f92672">-&gt;</span>len))
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		todo <span style="color:#f92672">-=</span> walk<span style="color:#f92672">-&gt;</span>len;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>todo)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		len <span style="color:#f92672">=</span> min(todo, POLLFD_PER_PAGE);
+</span></span><span style="display:flex;"><span>		walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next <span style="color:#f92672">=</span> kmalloc(struct_size(walk, entries, len),
+</span></span><span style="display:flex;"><span>					    GFP_KERNEL);
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>walk) {
+</span></span><span style="display:flex;"><span>			err <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>ENOMEM;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><p>然后在这个链表上不断新建链表，直到todo变成0，这应该是一个正常的退出循环流程。</p>
+<p>接下来的代码，初始化等待队列，在do_poll中得到活跃的事件数，然后释放等待队列，我们看看<code>do_poll</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>    poll_initwait(<span style="color:#f92672">&amp;</span>table);
+</span></span><span style="display:flex;"><span>	fdcount <span style="color:#f92672">=</span> do_poll(head, <span style="color:#f92672">&amp;</span>table, end_time);
+</span></span><span style="display:flex;"><span>	poll_freewait(<span style="color:#f92672">&amp;</span>table);
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">int</span> <span style="color:#a6e22e">do_poll</span>(<span style="color:#66d9ef">struct</span> poll_list <span style="color:#f92672">*</span>list, <span style="color:#66d9ef">struct</span> poll_wqueues <span style="color:#f92672">*</span>wait,
+</span></span><span style="display:flex;"><span>		   <span style="color:#66d9ef">struct</span> timespec64 <span style="color:#f92672">*</span>end_time)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	poll_table<span style="color:#f92672">*</span> pt <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>wait<span style="color:#f92672">-&gt;</span>pt;
+</span></span><span style="display:flex;"><span>	ktime_t expire, <span style="color:#f92672">*</span>to <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> timed_out <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>, count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>	u64 slack <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>	__poll_t busy_flag <span style="color:#f92672">=</span> net_busy_loop_on() <span style="color:#f92672">?</span> POLL_BUSY_LOOP : <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> busy_start <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* Optimise the no-wait case */</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (end_time <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>end_time<span style="color:#f92672">-&gt;</span>tv_sec <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>end_time<span style="color:#f92672">-&gt;</span>tv_nsec) {
+</span></span><span style="display:flex;"><span>		pt<span style="color:#f92672">-&gt;</span>_qproc <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>		timed_out <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (end_time <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>timed_out)
+</span></span><span style="display:flex;"><span>		slack <span style="color:#f92672">=</span> select_estimate_accuracy(end_time);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> (;;) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> poll_list <span style="color:#f92672">*</span>walk;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">bool</span> can_busy_loop <span style="color:#f92672">=</span> false;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">for</span> (walk <span style="color:#f92672">=</span> list; walk <span style="color:#f92672">!=</span> NULL; walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next) {
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">struct</span> pollfd <span style="color:#f92672">*</span> pfd, <span style="color:#f92672">*</span> pfd_end;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			pfd <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>entries;
+</span></span><span style="display:flex;"><span>			pfd_end <span style="color:#f92672">=</span> pfd <span style="color:#f92672">+</span> walk<span style="color:#f92672">-&gt;</span>len;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">for</span> (; pfd <span style="color:#f92672">!=</span> pfd_end; pfd<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>				<span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * Fish for events. If we found one, record it
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * and kill poll_table-&gt;_qproc, so we don&#39;t
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * needlessly register any other waiters after
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * this. They&#39;ll get immediately deregistered
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * when we break out and return.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 */</span>
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> (do_pollfd(pfd, pt, <span style="color:#f92672">&amp;</span>can_busy_loop,
+</span></span><span style="display:flex;"><span>					      busy_flag)) {
+</span></span><span style="display:flex;"><span>					count<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>					pt<span style="color:#f92672">-&gt;</span>_qproc <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>					<span style="color:#75715e">/* found something, stop busy polling */</span>
+</span></span><span style="display:flex;"><span>					busy_flag <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>					can_busy_loop <span style="color:#f92672">=</span> false;
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * All waiters have already been registered, so don&#39;t provide
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * a poll_table-&gt;_qproc to them on the next loop iteration.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 */</span>
+</span></span><span style="display:flex;"><span>		pt<span style="color:#f92672">-&gt;</span>_qproc <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>count) {
+</span></span><span style="display:flex;"><span>			count <span style="color:#f92672">=</span> wait<span style="color:#f92672">-&gt;</span>error;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (signal_pending(current))
+</span></span><span style="display:flex;"><span>				count <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>ERESTARTNOHAND;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (count <span style="color:#f92672">||</span> timed_out)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">/* only if found POLL_BUSY_LOOP sockets &amp;&amp; not out of time */</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (can_busy_loop <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>need_resched()) {
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>busy_start) {
+</span></span><span style="display:flex;"><span>				busy_start <span style="color:#f92672">=</span> busy_loop_current_time();
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>busy_loop_timeout(busy_start))
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		busy_flag <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * If this is the first loop and we have a timeout
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * given, then we convert to ktime_t and set the to
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * pointer to the expiry value.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 */</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (end_time <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>to) {
+</span></span><span style="display:flex;"><span>			expire <span style="color:#f92672">=</span> timespec64_to_ktime(<span style="color:#f92672">*</span>end_time);
+</span></span><span style="display:flex;"><span>			to <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>expire;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>poll_schedule_timeout(wait, TASK_INTERRUPTIBLE, to, slack))
+</span></span><span style="display:flex;"><span>			timed_out <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> count;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>我们看到其中的核心逻辑</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (walk <span style="color:#f92672">=</span> list; walk <span style="color:#f92672">!=</span> NULL; walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next) {
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">struct</span> pollfd <span style="color:#f92672">*</span> pfd, <span style="color:#f92672">*</span> pfd_end;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			pfd <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>entries;
+</span></span><span style="display:flex;"><span>			pfd_end <span style="color:#f92672">=</span> pfd <span style="color:#f92672">+</span> walk<span style="color:#f92672">-&gt;</span>len;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">for</span> (; pfd <span style="color:#f92672">!=</span> pfd_end; pfd<span style="color:#f92672">++</span>) {
+</span></span><span style="display:flex;"><span>				<span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * Fish for events. If we found one, record it
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * and kill poll_table-&gt;_qproc, so we don&#39;t
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * needlessly register any other waiters after
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * this. They&#39;ll get immediately deregistered
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 * when we break out and return.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">				 */</span>
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> (do_pollfd(pfd, pt, <span style="color:#f92672">&amp;</span>can_busy_loop,
+</span></span><span style="display:flex;"><span>					      busy_flag)) {
+</span></span><span style="display:flex;"><span>					count<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>					pt<span style="color:#f92672">-&gt;</span>_qproc <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>					<span style="color:#75715e">/* found something, stop busy polling */</span>
+</span></span><span style="display:flex;"><span>					busy_flag <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>					can_busy_loop <span style="color:#f92672">=</span> false;
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>		}
+</span></span></code></pre></div><p><code>do_pollfd</code>我们就是在这里得到revents的,看注释也可以直到，就是在这里捕获事件的发生并且计数有多少个已经准备好</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * Fish for pollable events on the pollfd-&gt;fd file descriptor. We&#39;re only
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * interested in events matching the pollfd-&gt;events mask, and the result
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * matching that mask is both recorded in pollfd-&gt;revents and returned. The
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * pwait poll_table will be used by the fd-provided poll handler for waiting,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * if pwait-&gt;_qproc is non-NULL.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">inline</span> __poll_t <span style="color:#a6e22e">do_pollfd</span>(<span style="color:#66d9ef">struct</span> pollfd <span style="color:#f92672">*</span>pollfd, poll_table <span style="color:#f92672">*</span>pwait,
+</span></span><span style="display:flex;"><span>				     <span style="color:#66d9ef">bool</span> <span style="color:#f92672">*</span>can_busy_poll,
+</span></span><span style="display:flex;"><span>				     __poll_t busy_flag)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> pollfd<span style="color:#f92672">-&gt;</span>fd;
+</span></span><span style="display:flex;"><span>	__poll_t mask <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>, filter;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">struct</span> fd f;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (fd <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">goto</span> out;
+</span></span><span style="display:flex;"><span>	mask <span style="color:#f92672">=</span> EPOLLNVAL;
+</span></span><span style="display:flex;"><span>	f <span style="color:#f92672">=</span> fdget(fd);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>f.file)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">goto</span> out;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* userland u16 -&gt;events contains POLL... bitmap */</span>
+</span></span><span style="display:flex;"><span>	filter <span style="color:#f92672">=</span> demangle_poll(pollfd<span style="color:#f92672">-&gt;</span>events) <span style="color:#f92672">|</span> EPOLLERR <span style="color:#f92672">|</span> EPOLLHUP;
+</span></span><span style="display:flex;"><span>	pwait<span style="color:#f92672">-&gt;</span>_key <span style="color:#f92672">=</span> filter <span style="color:#f92672">|</span> busy_flag;
+</span></span><span style="display:flex;"><span>	mask <span style="color:#f92672">=</span> vfs_poll(f.file, pwait);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (mask <span style="color:#f92672">&amp;</span> busy_flag)
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">*</span>can_busy_poll <span style="color:#f92672">=</span> true;
+</span></span><span style="display:flex;"><span>	mask <span style="color:#f92672">&amp;=</span> filter;		<span style="color:#75715e">/* Mask out unneeded events. */</span>
+</span></span><span style="display:flex;"><span>	fdput(f);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>out:
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">/* ... and so does -&gt;revents */</span>
+</span></span><span style="display:flex;"><span>	pollfd<span style="color:#f92672">-&gt;</span>revents <span style="color:#f92672">=</span> mangle_poll(mask);
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> mask;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>回到上一个函数，接下来主流程就没了，做一些判断然后返回准备好的数量</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * All waiters have already been registered, so don&#39;t provide
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * a poll_table-&gt;_qproc to them on the next loop iteration.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 */</span>
+</span></span><span style="display:flex;"><span>		pt<span style="color:#f92672">-&gt;</span>_qproc <span style="color:#f92672">=</span> NULL;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>count) {
+</span></span><span style="display:flex;"><span>			count <span style="color:#f92672">=</span> wait<span style="color:#f92672">-&gt;</span>error;
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (signal_pending(current))
+</span></span><span style="display:flex;"><span>				count <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>ERESTARTNOHAND;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (count <span style="color:#f92672">||</span> timed_out)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">/* only if found POLL_BUSY_LOOP sockets &amp;&amp; not out of time */</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (can_busy_loop <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>need_resched()) {
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>busy_start) {
+</span></span><span style="display:flex;"><span>				busy_start <span style="color:#f92672">=</span> busy_loop_current_time();
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>busy_loop_timeout(busy_start))
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>		busy_flag <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">/*
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * If this is the first loop and we have a timeout
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * given, then we convert to ktime_t and set the to
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 * pointer to the expiry value.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">		 */</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (end_time <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>to) {
+</span></span><span style="display:flex;"><span>			expire <span style="color:#f92672">=</span> timespec64_to_ktime(<span style="color:#f92672">*</span>end_time);
+</span></span><span style="display:flex;"><span>			to <span style="color:#f92672">=</span> <span style="color:#f92672">&amp;</span>expire;
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>poll_schedule_timeout(wait, TASK_INTERRUPTIBLE, to, slack))
+</span></span><span style="display:flex;"><span>			timed_out <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> count;
+</span></span></code></pre></div><p>返回就绪的事件数量</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>	poll_initwait(<span style="color:#f92672">&amp;</span>table);
+</span></span><span style="display:flex;"><span>	fdcount <span style="color:#f92672">=</span> do_poll(head, <span style="color:#f92672">&amp;</span>table, end_time);
+</span></span><span style="display:flex;"><span>	poll_freewait(<span style="color:#f92672">&amp;</span>table);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>user_write_access_begin(ufds, nfds <span style="color:#f92672">*</span> <span style="color:#66d9ef">sizeof</span>(<span style="color:#f92672">*</span>ufds)))
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">goto</span> out_fds;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> (walk <span style="color:#f92672">=</span> head; walk; walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> pollfd <span style="color:#f92672">*</span>fds <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>entries;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">int</span> j;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">for</span> (j <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>len; j; fds<span style="color:#f92672">++</span>, ufds<span style="color:#f92672">++</span>, j<span style="color:#f92672">--</span>)
+</span></span><span style="display:flex;"><span>			unsafe_put_user(fds<span style="color:#f92672">-&gt;</span>revents, <span style="color:#f92672">&amp;</span>ufds<span style="color:#f92672">-&gt;</span>revents, Efault);
+</span></span><span style="display:flex;"><span>  	}
+</span></span><span style="display:flex;"><span>	user_write_access_end();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	err <span style="color:#f92672">=</span> fdcount;
+</span></span><span style="display:flex;"><span>out_fds:
+</span></span><span style="display:flex;"><span>	walk <span style="color:#f92672">=</span> head<span style="color:#f92672">-&gt;</span>next;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">while</span> (walk) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> poll_list <span style="color:#f92672">*</span>pos <span style="color:#f92672">=</span> walk;
+</span></span><span style="display:flex;"><span>		walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next;
+</span></span><span style="display:flex;"><span>		kfree(pos);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> err;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Efault:
+</span></span><span style="display:flex;"><span>	user_write_access_end();
+</span></span><span style="display:flex;"><span>	err <span style="color:#f92672">=</span> <span style="color:#f92672">-</span>EFAULT;
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">goto</span> out_fds;
+</span></span></code></pre></div><p>最后通过上述代码中的</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (walk <span style="color:#f92672">=</span> head; walk; walk <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>next) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">struct</span> pollfd <span style="color:#f92672">*</span>fds <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>entries;
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">int</span> j;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">for</span> (j <span style="color:#f92672">=</span> walk<span style="color:#f92672">-&gt;</span>len; j; fds<span style="color:#f92672">++</span>, ufds<span style="color:#f92672">++</span>, j<span style="color:#f92672">--</span>)
+</span></span><span style="display:flex;"><span>			unsafe_put_user(fds<span style="color:#f92672">-&gt;</span>revents, <span style="color:#f92672">&amp;</span>ufds<span style="color:#f92672">-&gt;</span>revents, Efault);
+</span></span><span style="display:flex;"><span>  	}
+</span></span><span style="display:flex;"><span>	user_write_access_end();
+</span></span></code></pre></div><p>这一段，通过指针带回事件。赋值给revent。</p>
+<h2 id="讲完了">讲完了</h2>
+<p>在源码中进行了多次的循环拷贝，假如fds特别多，如此拷贝与循环，那这个是万万不可接受的，重要的还是选择一个合适的数据结构来存储fd，链表与数组都显然是低效的，每次遍历都需要O（n）的复杂度。在他的后继者epoll中使用了红黑树，并且是增量跟新，也就是说，每次插入删除查找都是O(lgn)的复杂度，在大量的事件下，查询效率也只跟树的高度相关，而不是这两个线性结构O（n）。</p>
+<p>这也是当时时代下的产物，当年并不是如今的互联网时代，几十百个fd的copy并不会有啥问题，简单也够用。</p>
+</section>
+
+  
+  
+
+  
+  
+  
+  <nav class="post-nav">
+    
+    <a class="prev" href="https://Rush.vercel.app/posts/umsandfiber/"><span>←</span><span>User-Mode Scheduling &amp; Coroutine &amp; Goruntine</span></a>
+     
+    <a class="next" href="https://Rush.vercel.app/posts/syncpool/"><span>Sync.Pool解读</span><span>→</span></a>
+    
+  </nav>
+  
+
+  
+  
+  <div id="disqus_thread" class="post-comments"></div>
+  <script>
+    var disqusShortname = 'bloger';
+    var script = document.createElement('script');
+    script.src = 'https://' + disqusShortname + '.disqus.com/embed.js';
+    script.setAttribute('data-timestamp', +new Date());
+    document.head.appendChild(script);
+  </script>
+  
+</article>
+
+</main>
+
+    <footer class="footer">
+  <p>&copy; 2022 <a href="https://Rush.vercel.app/">Rush.vercel.app</a></p>
+  <p>Powered by <a href="https://gohugo.io/" rel="noopener" target="_blank">Hugo️️</a>️</p>
+  <p>
+    <a href="https://github.com/nanxiaobei/hugo-paper" rel="noopener" target="_blank">Paper 5.1</a>
+  </p>
+</footer>
+
+  </body>
+</html>

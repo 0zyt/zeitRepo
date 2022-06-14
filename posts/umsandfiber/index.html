@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html lang="en-us">
+  <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+  
+  <title>User-Mode Scheduling &amp; Coroutine &amp; Goruntine - Rush.vercel.app</title>
+
+  
+  
+  <meta name="description" content="今天学习了[Windows文档][https://docs.microsoft.com/zh-cn/windows/win32/procthread/about-processes-and-threads]，发现了一个新的概念，叫UMS(User-Mode Scheduling)，了解之后发现，这个东西很像Goroutine,我本人对于协程的认知其实也就是个由Runtime/VM/Framework/Programming language提供的用户态线程调度器，当然Goroutine是特例或者说不是协程，但是在Windows中，分出了两个东西，一个叫UMS，一个叫Fiber.Fiber也就是咱们更加熟知的“协程”，由手动管理调度的协程（我这里想到的是Kotlin Coroutine的suspend和resume)。" />
+  <meta name="author" content="" />
+  
+
+  
+  
+  
+  
+  
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/app.min.css" />
+
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/an-old-hope.min.css" />
+  <script
+    defer
+    src="https://Rush.vercel.app/highlight.min.js"
+    onload="hljs.initHighlightingOnLoad();"
+  ></script>
+  
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/theme.png" />
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/github.svg" />
+  
+
+  
+  <link rel="icon" href="https://Rush.vercel.app/favicon.ico" />
+  <link rel="apple-touch-icon" href="https://Rush.vercel.app/apple-touch-icon.png" />
+
+  
+  <meta name="generator" content="Hugo 0.100.0-DEV" />
+
+  
+  
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  <meta property="og:title" content="User-Mode Scheduling &amp; Coroutine &amp; Goruntine" />
+<meta property="og:description" content="今天学习了[Windows文档][https://docs.microsoft.com/zh-cn/windows/win32/procthread/about-processes-and-threads]，发现了一个新的概念，叫UMS(User-Mode Scheduling)，了解之后发现，这个东西很像Goroutine,我本人对于协程的认知其实也就是个由Runtime/VM/Framework/Programming language提供的用户态线程调度器，当然Goroutine是特例或者说不是协程，但是在Windows中，分出了两个东西，一个叫UMS，一个叫Fiber.Fiber也就是咱们更加熟知的“协程”，由手动管理调度的协程（我这里想到的是Kotlin Coroutine的suspend和resume)。" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://Rush.vercel.app/posts/umsandfiber/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2021-03-06T16:26:29+08:00" />
+<meta property="article:modified_time" content="2021-03-06T16:26:29+08:00" />
+
+
+  
+  <meta itemprop="name" content="User-Mode Scheduling &amp; Coroutine &amp; Goruntine">
+<meta itemprop="description" content="今天学习了[Windows文档][https://docs.microsoft.com/zh-cn/windows/win32/procthread/about-processes-and-threads]，发现了一个新的概念，叫UMS(User-Mode Scheduling)，了解之后发现，这个东西很像Goroutine,我本人对于协程的认知其实也就是个由Runtime/VM/Framework/Programming language提供的用户态线程调度器，当然Goroutine是特例或者说不是协程，但是在Windows中，分出了两个东西，一个叫UMS，一个叫Fiber.Fiber也就是咱们更加熟知的“协程”，由手动管理调度的协程（我这里想到的是Kotlin Coroutine的suspend和resume)。"><meta itemprop="datePublished" content="2021-03-06T16:26:29+08:00" />
+<meta itemprop="dateModified" content="2021-03-06T16:26:29+08:00" />
+<meta itemprop="wordCount" content="4">
+<meta itemprop="keywords" content="" />
+  
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="User-Mode Scheduling &amp; Coroutine &amp; Goruntine"/>
+<meta name="twitter:description" content="今天学习了[Windows文档][https://docs.microsoft.com/zh-cn/windows/win32/procthread/about-processes-and-threads]，发现了一个新的概念，叫UMS(User-Mode Scheduling)，了解之后发现，这个东西很像Goroutine,我本人对于协程的认知其实也就是个由Runtime/VM/Framework/Programming language提供的用户态线程调度器，当然Goroutine是特例或者说不是协程，但是在Windows中，分出了两个东西，一个叫UMS，一个叫Fiber.Fiber也就是咱们更加熟知的“协程”，由手动管理调度的协程（我这里想到的是Kotlin Coroutine的suspend和resume)。"/>
+
+  
+  
+</head>
+
+
+  <body class="not-ready" data-menu="false">
+    <header class="header">
+  
+  <p class="logo">
+    <a class="site-name" href="https://Rush.vercel.app/">Rush.vercel.app</a><a class="btn-dark"></a>
+  </p>
+  
+
+  <script>
+    let bodyClx = document.body.classList;
+    let btnDark = document.querySelector('.btn-dark');
+    let sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+    let darkVal = localStorage.getItem('dark');
+
+    let setDark = (isDark) => {
+      bodyClx[isDark ? 'add' : 'remove']('dark');
+      localStorage.setItem('dark', isDark ? 'yes' : 'no');
+    };
+
+    setDark(darkVal ? darkVal === 'yes' : sysDark.matches);
+    requestAnimationFrame(() => bodyClx.remove('not-ready'));
+
+    btnDark.addEventListener('click', () => setDark(!bodyClx.contains('dark')));
+    sysDark.addEventListener('change', (event) => setDark(event.matches));
+  </script>
+
+  
+  
+
+  
+  <nav class="social">
+    
+    <a
+      class="github"
+      style="--url: url(./github.svg)"
+      href="https://github.com/https://github.com/Notsetup"
+      target="_blank"
+    ></a>
+    
+  </nav>
+  
+</header>
+
+
+    <main class="main">
+
+<article class="post-single">
+  <header class="post-title">
+    <p>
+      
+      <time>Mar 6, 2021</time>
+      
+      
+    </p>
+    <h1>User-Mode Scheduling &amp; Coroutine &amp; Goruntine</h1>
+  </header>
+  <section class="post-content"><p>今天学习了[Windows文档][https://docs.microsoft.com/zh-cn/windows/win32/procthread/about-processes-and-threads]，发现了一个新的概念，叫UMS(User-Mode Scheduling)，了解之后发现，这个东西很像Goroutine,我本人对于协程的认知其实也就是个由Runtime/VM/Framework/Programming language提供的用户态线程调度器，当然Goroutine是特例或者说不是协程，但是在Windows中，分出了两个东西，一个叫UMS，一个叫Fiber.Fiber也就是咱们更加熟知的“协程”，由手动管理调度的协程（我这里想到的是Kotlin Coroutine的suspend和resume)。</p>
+</section>
+
+  
+  
+
+  
+  
+  
+  <nav class="post-nav">
+    
+    <a class="prev" href="https://Rush.vercel.app/posts/tfo-3way/"><span>←</span><span>TCP FAST OPEN看三次握手</span></a>
+     
+    <a class="next" href="https://Rush.vercel.app/posts/syscall_poll/"><span>Syscall_poll代码解读</span><span>→</span></a>
+    
+  </nav>
+  
+
+  
+  
+  <div id="disqus_thread" class="post-comments"></div>
+  <script>
+    var disqusShortname = 'bloger';
+    var script = document.createElement('script');
+    script.src = 'https://' + disqusShortname + '.disqus.com/embed.js';
+    script.setAttribute('data-timestamp', +new Date());
+    document.head.appendChild(script);
+  </script>
+  
+</article>
+
+</main>
+
+    <footer class="footer">
+  <p>&copy; 2022 <a href="https://Rush.vercel.app/">Rush.vercel.app</a></p>
+  <p>Powered by <a href="https://gohugo.io/" rel="noopener" target="_blank">Hugo️️</a>️</p>
+  <p>
+    <a href="https://github.com/nanxiaobei/hugo-paper" rel="noopener" target="_blank">Paper 5.1</a>
+  </p>
+</footer>
+
+  </body>
+</html>

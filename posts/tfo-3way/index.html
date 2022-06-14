@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html lang="en-us">
+  <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+  
+  <title>TCP FAST OPEN看三次握手 - Rush.vercel.app</title>
+
+  
+  
+  <meta name="description" content="TCP三次握手是面试的一个常考点，常常会问：不三次握手行不行？为什么是三次握手不是更多或者更少？ 八股文答案就不说了，网上很多。 但是TCP确实是可以不三次握手的，那就是TFO（TCP FAST OPEN），TFO会在第一次三次握手时，在SYN-ACK这个报文上带上一个Fast Open Cookie，让客户端保存，客户端第二次访问服务端时候，发SYN带上这个Cookie，Cookie中维护了上一次连接中建立的信息，就可以只握手一次拉！1个RTT完成握手。 那么，我们可以想到，后续几次握手的关键信息，就在这个Cookie里，也就是说，是这个Cookie里的东西让后两次握手避免了。
+探索RFC7413 https://tools.ietf.org/html/rfc7413
+TOC只能是根据服务端Mac生成的，会验证客户端的源IP地址、会有一个过期时间（安全考虑）并且可以定期更新
+服务端操作
+- GetCookie(IP_Address): returns a (new) cookie. - IsCookieValid(IP_Address, Cookie): checks if the cookie is valid, i.e., it has not expired and the cookie authenticates the client IP address. 会保存TCP options
+客户端的TFO依赖客户端与服务器的IP地址，客户端会保存最近接收的一对Cookie，客户端也缓存MSS，因为MSS会在SYN-ACK包中，所以可以提高性能，如果没有缓存会用默认的IPV4 536 bytes和IPV6 1220 bytes 大小MSS，如果太大可能会在MTU分片抵消TFO优势还有重传等其他副作用。
+客户端还要缓存负面的响应避免可能的连接失败，比如服务器没确认的SYN中的数据，ICMP错误消息和完全没有来自服务端的SYN-ACK响应，比如中间设备或者防火墙导致的SYN丢包，这时应该暂时关闭TFO在这个特别的地址上（目的IP和端口），所以也要缓存目标端口。
+完 我没逐字逐句看，就看到这么多了，可能还很多不完善" />
+  <meta name="author" content="" />
+  
+
+  
+  
+  
+  
+  
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/app.min.css" />
+
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/an-old-hope.min.css" />
+  <script
+    defer
+    src="https://Rush.vercel.app/highlight.min.js"
+    onload="hljs.initHighlightingOnLoad();"
+  ></script>
+  
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/theme.png" />
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/github.svg" />
+  
+
+  
+  <link rel="icon" href="https://Rush.vercel.app/favicon.ico" />
+  <link rel="apple-touch-icon" href="https://Rush.vercel.app/apple-touch-icon.png" />
+
+  
+  <meta name="generator" content="Hugo 0.100.0-DEV" />
+
+  
+  
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  <meta property="og:title" content="TCP FAST OPEN看三次握手" />
+<meta property="og:description" content="TCP三次握手是面试的一个常考点，常常会问：不三次握手行不行？为什么是三次握手不是更多或者更少？ 八股文答案就不说了，网上很多。 但是TCP确实是可以不三次握手的，那就是TFO（TCP FAST OPEN），TFO会在第一次三次握手时，在SYN-ACK这个报文上带上一个Fast Open Cookie，让客户端保存，客户端第二次访问服务端时候，发SYN带上这个Cookie，Cookie中维护了上一次连接中建立的信息，就可以只握手一次拉！1个RTT完成握手。 那么，我们可以想到，后续几次握手的关键信息，就在这个Cookie里，也就是说，是这个Cookie里的东西让后两次握手避免了。
+探索RFC7413 https://tools.ietf.org/html/rfc7413
+TOC只能是根据服务端Mac生成的，会验证客户端的源IP地址、会有一个过期时间（安全考虑）并且可以定期更新
+服务端操作
+- GetCookie(IP_Address): returns a (new) cookie. - IsCookieValid(IP_Address, Cookie): checks if the cookie is valid, i.e., it has not expired and the cookie authenticates the client IP address. 会保存TCP options
+客户端的TFO依赖客户端与服务器的IP地址，客户端会保存最近接收的一对Cookie，客户端也缓存MSS，因为MSS会在SYN-ACK包中，所以可以提高性能，如果没有缓存会用默认的IPV4 536 bytes和IPV6 1220 bytes 大小MSS，如果太大可能会在MTU分片抵消TFO优势还有重传等其他副作用。
+客户端还要缓存负面的响应避免可能的连接失败，比如服务器没确认的SYN中的数据，ICMP错误消息和完全没有来自服务端的SYN-ACK响应，比如中间设备或者防火墙导致的SYN丢包，这时应该暂时关闭TFO在这个特别的地址上（目的IP和端口），所以也要缓存目标端口。
+完 我没逐字逐句看，就看到这么多了，可能还很多不完善" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://Rush.vercel.app/posts/tfo-3way/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2021-03-08T16:26:36+08:00" />
+<meta property="article:modified_time" content="2021-03-08T16:26:36+08:00" />
+
+
+  
+  <meta itemprop="name" content="TCP FAST OPEN看三次握手">
+<meta itemprop="description" content="TCP三次握手是面试的一个常考点，常常会问：不三次握手行不行？为什么是三次握手不是更多或者更少？ 八股文答案就不说了，网上很多。 但是TCP确实是可以不三次握手的，那就是TFO（TCP FAST OPEN），TFO会在第一次三次握手时，在SYN-ACK这个报文上带上一个Fast Open Cookie，让客户端保存，客户端第二次访问服务端时候，发SYN带上这个Cookie，Cookie中维护了上一次连接中建立的信息，就可以只握手一次拉！1个RTT完成握手。 那么，我们可以想到，后续几次握手的关键信息，就在这个Cookie里，也就是说，是这个Cookie里的东西让后两次握手避免了。
+探索RFC7413 https://tools.ietf.org/html/rfc7413
+TOC只能是根据服务端Mac生成的，会验证客户端的源IP地址、会有一个过期时间（安全考虑）并且可以定期更新
+服务端操作
+- GetCookie(IP_Address): returns a (new) cookie. - IsCookieValid(IP_Address, Cookie): checks if the cookie is valid, i.e., it has not expired and the cookie authenticates the client IP address. 会保存TCP options
+客户端的TFO依赖客户端与服务器的IP地址，客户端会保存最近接收的一对Cookie，客户端也缓存MSS，因为MSS会在SYN-ACK包中，所以可以提高性能，如果没有缓存会用默认的IPV4 536 bytes和IPV6 1220 bytes 大小MSS，如果太大可能会在MTU分片抵消TFO优势还有重传等其他副作用。
+客户端还要缓存负面的响应避免可能的连接失败，比如服务器没确认的SYN中的数据，ICMP错误消息和完全没有来自服务端的SYN-ACK响应，比如中间设备或者防火墙导致的SYN丢包，这时应该暂时关闭TFO在这个特别的地址上（目的IP和端口），所以也要缓存目标端口。
+完 我没逐字逐句看，就看到这么多了，可能还很多不完善"><meta itemprop="datePublished" content="2021-03-08T16:26:36+08:00" />
+<meta itemprop="dateModified" content="2021-03-08T16:26:36+08:00" />
+<meta itemprop="wordCount" content="51">
+<meta itemprop="keywords" content="" />
+  
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="TCP FAST OPEN看三次握手"/>
+<meta name="twitter:description" content="TCP三次握手是面试的一个常考点，常常会问：不三次握手行不行？为什么是三次握手不是更多或者更少？ 八股文答案就不说了，网上很多。 但是TCP确实是可以不三次握手的，那就是TFO（TCP FAST OPEN），TFO会在第一次三次握手时，在SYN-ACK这个报文上带上一个Fast Open Cookie，让客户端保存，客户端第二次访问服务端时候，发SYN带上这个Cookie，Cookie中维护了上一次连接中建立的信息，就可以只握手一次拉！1个RTT完成握手。 那么，我们可以想到，后续几次握手的关键信息，就在这个Cookie里，也就是说，是这个Cookie里的东西让后两次握手避免了。
+探索RFC7413 https://tools.ietf.org/html/rfc7413
+TOC只能是根据服务端Mac生成的，会验证客户端的源IP地址、会有一个过期时间（安全考虑）并且可以定期更新
+服务端操作
+- GetCookie(IP_Address): returns a (new) cookie. - IsCookieValid(IP_Address, Cookie): checks if the cookie is valid, i.e., it has not expired and the cookie authenticates the client IP address. 会保存TCP options
+客户端的TFO依赖客户端与服务器的IP地址，客户端会保存最近接收的一对Cookie，客户端也缓存MSS，因为MSS会在SYN-ACK包中，所以可以提高性能，如果没有缓存会用默认的IPV4 536 bytes和IPV6 1220 bytes 大小MSS，如果太大可能会在MTU分片抵消TFO优势还有重传等其他副作用。
+客户端还要缓存负面的响应避免可能的连接失败，比如服务器没确认的SYN中的数据，ICMP错误消息和完全没有来自服务端的SYN-ACK响应，比如中间设备或者防火墙导致的SYN丢包，这时应该暂时关闭TFO在这个特别的地址上（目的IP和端口），所以也要缓存目标端口。
+完 我没逐字逐句看，就看到这么多了，可能还很多不完善"/>
+
+  
+  
+</head>
+
+
+  <body class="not-ready" data-menu="false">
+    <header class="header">
+  
+  <p class="logo">
+    <a class="site-name" href="https://Rush.vercel.app/">Rush.vercel.app</a><a class="btn-dark"></a>
+  </p>
+  
+
+  <script>
+    let bodyClx = document.body.classList;
+    let btnDark = document.querySelector('.btn-dark');
+    let sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+    let darkVal = localStorage.getItem('dark');
+
+    let setDark = (isDark) => {
+      bodyClx[isDark ? 'add' : 'remove']('dark');
+      localStorage.setItem('dark', isDark ? 'yes' : 'no');
+    };
+
+    setDark(darkVal ? darkVal === 'yes' : sysDark.matches);
+    requestAnimationFrame(() => bodyClx.remove('not-ready'));
+
+    btnDark.addEventListener('click', () => setDark(!bodyClx.contains('dark')));
+    sysDark.addEventListener('change', (event) => setDark(event.matches));
+  </script>
+
+  
+  
+
+  
+  <nav class="social">
+    
+    <a
+      class="github"
+      style="--url: url(./github.svg)"
+      href="https://github.com/https://github.com/Notsetup"
+      target="_blank"
+    ></a>
+    
+  </nav>
+  
+</header>
+
+
+    <main class="main">
+
+<article class="post-single">
+  <header class="post-title">
+    <p>
+      
+      <time>Mar 8, 2021</time>
+      
+      
+    </p>
+    <h1>TCP FAST OPEN看三次握手</h1>
+  </header>
+  <section class="post-content"><p>TCP三次握手是面试的一个常考点，常常会问：不三次握手行不行？为什么是三次握手不是更多或者更少？
+八股文答案就不说了，网上很多。
+但是TCP确实是可以不三次握手的，那就是TFO（TCP FAST OPEN），TFO会在第一次三次握手时，在SYN-ACK这个报文上带上一个Fast Open Cookie，让客户端保存，客户端第二次访问服务端时候，发SYN带上这个Cookie，Cookie中维护了上一次连接中建立的信息，就可以只握手一次拉！1个RTT完成握手。
+那么，我们可以想到，后续几次握手的关键信息，就在这个Cookie里，也就是说，是这个Cookie里的东西让后两次握手避免了。</p>
+<h2 id="探索rfc7413">探索RFC7413</h2>
+<p><a href="https://tools.ietf.org/html/rfc7413">https://tools.ietf.org/html/rfc7413</a></p>
+<p>TOC只能是根据服务端Mac生成的，会验证客户端的源IP地址、会有一个过期时间（安全考虑）并且可以定期更新</p>
+<p>服务端操作</p>
+<pre tabindex="0"><code>-  GetCookie(IP_Address): returns a (new) cookie.
+-  IsCookieValid(IP_Address, Cookie): checks if the cookie is valid,
+    i.e., it has not expired and the cookie authenticates the client
+    IP address.
+</code></pre><p>会保存TCP options</p>
+<p>客户端的TFO依赖客户端与服务器的IP地址，客户端会保存最近接收的一对Cookie，客户端也缓存MSS，因为MSS会在SYN-ACK包中，所以可以提高性能，如果没有缓存会用默认的IPV4 536 bytes和IPV6 1220 bytes 大小MSS，如果太大可能会在MTU分片抵消TFO优势还有重传等其他副作用。</p>
+<p>客户端还要缓存负面的响应避免可能的连接失败，比如服务器没确认的SYN中的数据，ICMP错误消息和完全没有来自服务端的SYN-ACK响应，比如中间设备或者防火墙导致的SYN丢包，这时应该暂时关闭TFO在这个特别的地址上（目的IP和端口），所以也要缓存目标端口。</p>
+<h2 id="完">完</h2>
+<p>我没逐字逐句看，就看到这么多了，可能还很多不完善</p>
+</section>
+
+  
+  
+
+  
+  
+  
+  <nav class="post-nav">
+    
+    <a class="prev" href="https://Rush.vercel.app/posts/ksm/"><span>←</span><span>kube-state-metrics流程</span></a>
+     
+    <a class="next" href="https://Rush.vercel.app/posts/umsandfiber/"><span>User-Mode Scheduling &amp; Coroutine &amp; Goruntine</span><span>→</span></a>
+    
+  </nav>
+  
+
+  
+  
+  <div id="disqus_thread" class="post-comments"></div>
+  <script>
+    var disqusShortname = 'bloger';
+    var script = document.createElement('script');
+    script.src = 'https://' + disqusShortname + '.disqus.com/embed.js';
+    script.setAttribute('data-timestamp', +new Date());
+    document.head.appendChild(script);
+  </script>
+  
+</article>
+
+</main>
+
+    <footer class="footer">
+  <p>&copy; 2022 <a href="https://Rush.vercel.app/">Rush.vercel.app</a></p>
+  <p>Powered by <a href="https://gohugo.io/" rel="noopener" target="_blank">Hugo️️</a>️</p>
+  <p>
+    <a href="https://github.com/nanxiaobei/hugo-paper" rel="noopener" target="_blank">Paper 5.1</a>
+  </p>
+</footer>
+
+  </body>
+</html>

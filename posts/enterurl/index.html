@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html lang="en-us">
+  <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+  
+  <title>输入url会发生什么 - Rush.vercel.app</title>
+
+  
+  
+  <meta name="description" content="输入URL后会发生什么  调用浏览器渲染引擎（譬如V8），解析网络请求，解析执行JS，UI后端渲染 从URL中解析域名，根据域名查询DNS  在浏览器DNS缓存中查询 在操作系统DNS缓存中搜索 系统Hosts文件中查询 向本地DNS服务器发起Query请求（UDP）   与Server进行TCP握手（&#43;TLS握手） 构造HTTP请求，填充上下文到HTTP头 发送HTTP请求，收到HTML页面作为响应 浏览器引擎解析响应，并渲染至界面，根据HTML文档中超链接再构造HTTP请求 发起获取页面资源的HTTP请求   三次握手  C: SYN-&gt; S: &lt;-SYN,ACK C: ACK-&gt;   四次挥手  FIN-&gt; &lt;-ACK &lt;-FIN,ACK ACK-&gt;   状态机图   &#43;---------&#43; ---------\ active OPEN | CLOSED | \ ----------- &#43;---------&#43;&lt;---------\ \ create TCB | ^ \ \ snd SYN passive OPEN | | CLOSE \ \ ------------ | | ---------- \ \ create TCB | | delete TCB \ \ V | \ \ &#43;---------&#43; CLOSE | \ | LISTEN | ---------- | | &#43;---------&#43; delete TCB | | rcv SYN | | SEND | | ----------- | | ------- | V &#43;---------&#43; snd SYN,ACK / \ snd SYN &#43;---------&#43; | |&lt;----------------- ------------------&gt;| | | SYN | rcv SYN | SYN | | RCVD |&lt;-----------------------------------------------| SENT | | | snd ACK | | | |------------------ -------------------| | &#43;---------&#43; rcv ACK of SYN \ / rcv SYN,ACK &#43;---------&#43; | -------------- | | ----------- | x | | snd ACK | V V | CLOSE &#43;---------&#43; | ------- | ESTAB | | snd FIN &#43;---------&#43; | CLOSE | | rcv FIN V ------- | | ------- &#43;---------&#43; snd FIN / \ snd ACK &#43;---------&#43; | FIN |&lt;----------------- ------------------&gt;| CLOSE | | WAIT-1 |------------------ | WAIT | &#43;---------&#43; rcv FIN \ &#43;---------&#43; | rcv ACK of FIN ------- | CLOSE | | -------------- snd ACK | ------- | V x V snd FIN V &#43;---------&#43; &#43;---------&#43; &#43;---------&#43; |FINWAIT-2| | CLOSING | | LAST-ACK| &#43;---------&#43; &#43;---------&#43; &#43;---------&#43; | rcv ACK of FIN | rcv ACK of FIN | | rcv FIN -------------- | Timeout=2MSL -------------- | | ------- x V ------------ x V \ snd ACK &#43;---------&#43;delete TCB &#43;---------&#43; ------------------------&gt;|TIME WAIT|------------------&gt;| CLOSED | &#43;---------&#43; &#43;---------&#43; " />
+  <meta name="author" content="" />
+  
+
+  
+  
+  
+  
+  
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/app.min.css" />
+
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/an-old-hope.min.css" />
+  <script
+    defer
+    src="https://Rush.vercel.app/highlight.min.js"
+    onload="hljs.initHighlightingOnLoad();"
+  ></script>
+  
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/theme.png" />
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/github.svg" />
+  
+
+  
+  <link rel="icon" href="https://Rush.vercel.app/favicon.ico" />
+  <link rel="apple-touch-icon" href="https://Rush.vercel.app/apple-touch-icon.png" />
+
+  
+  <meta name="generator" content="Hugo 0.100.0-DEV" />
+
+  
+  
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  <meta property="og:title" content="输入url会发生什么" />
+<meta property="og:description" content="输入URL后会发生什么  调用浏览器渲染引擎（譬如V8），解析网络请求，解析执行JS，UI后端渲染 从URL中解析域名，根据域名查询DNS  在浏览器DNS缓存中查询 在操作系统DNS缓存中搜索 系统Hosts文件中查询 向本地DNS服务器发起Query请求（UDP）   与Server进行TCP握手（&#43;TLS握手） 构造HTTP请求，填充上下文到HTTP头 发送HTTP请求，收到HTML页面作为响应 浏览器引擎解析响应，并渲染至界面，根据HTML文档中超链接再构造HTTP请求 发起获取页面资源的HTTP请求   三次握手  C: SYN-&gt; S: &lt;-SYN,ACK C: ACK-&gt;   四次挥手  FIN-&gt; &lt;-ACK &lt;-FIN,ACK ACK-&gt;   状态机图   &#43;---------&#43; ---------\ active OPEN | CLOSED | \ ----------- &#43;---------&#43;&lt;---------\ \ create TCB | ^ \ \ snd SYN passive OPEN | | CLOSE \ \ ------------ | | ---------- \ \ create TCB | | delete TCB \ \ V | \ \ &#43;---------&#43; CLOSE | \ | LISTEN | ---------- | | &#43;---------&#43; delete TCB | | rcv SYN | | SEND | | ----------- | | ------- | V &#43;---------&#43; snd SYN,ACK / \ snd SYN &#43;---------&#43; | |&lt;----------------- ------------------&gt;| | | SYN | rcv SYN | SYN | | RCVD |&lt;-----------------------------------------------| SENT | | | snd ACK | | | |------------------ -------------------| | &#43;---------&#43; rcv ACK of SYN \ / rcv SYN,ACK &#43;---------&#43; | -------------- | | ----------- | x | | snd ACK | V V | CLOSE &#43;---------&#43; | ------- | ESTAB | | snd FIN &#43;---------&#43; | CLOSE | | rcv FIN V ------- | | ------- &#43;---------&#43; snd FIN / \ snd ACK &#43;---------&#43; | FIN |&lt;----------------- ------------------&gt;| CLOSE | | WAIT-1 |------------------ | WAIT | &#43;---------&#43; rcv FIN \ &#43;---------&#43; | rcv ACK of FIN ------- | CLOSE | | -------------- snd ACK | ------- | V x V snd FIN V &#43;---------&#43; &#43;---------&#43; &#43;---------&#43; |FINWAIT-2| | CLOSING | | LAST-ACK| &#43;---------&#43; &#43;---------&#43; &#43;---------&#43; | rcv ACK of FIN | rcv ACK of FIN | | rcv FIN -------------- | Timeout=2MSL -------------- | | ------- x V ------------ x V \ snd ACK &#43;---------&#43;delete TCB &#43;---------&#43; ------------------------&gt;|TIME WAIT|------------------&gt;| CLOSED | &#43;---------&#43; &#43;---------&#43; " />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://Rush.vercel.app/posts/enterurl/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2021-02-02T16:26:43+08:00" />
+<meta property="article:modified_time" content="2021-02-02T16:26:43+08:00" />
+
+
+  
+  <meta itemprop="name" content="输入url会发生什么">
+<meta itemprop="description" content="输入URL后会发生什么  调用浏览器渲染引擎（譬如V8），解析网络请求，解析执行JS，UI后端渲染 从URL中解析域名，根据域名查询DNS  在浏览器DNS缓存中查询 在操作系统DNS缓存中搜索 系统Hosts文件中查询 向本地DNS服务器发起Query请求（UDP）   与Server进行TCP握手（&#43;TLS握手） 构造HTTP请求，填充上下文到HTTP头 发送HTTP请求，收到HTML页面作为响应 浏览器引擎解析响应，并渲染至界面，根据HTML文档中超链接再构造HTTP请求 发起获取页面资源的HTTP请求   三次握手  C: SYN-&gt; S: &lt;-SYN,ACK C: ACK-&gt;   四次挥手  FIN-&gt; &lt;-ACK &lt;-FIN,ACK ACK-&gt;   状态机图   &#43;---------&#43; ---------\ active OPEN | CLOSED | \ ----------- &#43;---------&#43;&lt;---------\ \ create TCB | ^ \ \ snd SYN passive OPEN | | CLOSE \ \ ------------ | | ---------- \ \ create TCB | | delete TCB \ \ V | \ \ &#43;---------&#43; CLOSE | \ | LISTEN | ---------- | | &#43;---------&#43; delete TCB | | rcv SYN | | SEND | | ----------- | | ------- | V &#43;---------&#43; snd SYN,ACK / \ snd SYN &#43;---------&#43; | |&lt;----------------- ------------------&gt;| | | SYN | rcv SYN | SYN | | RCVD |&lt;-----------------------------------------------| SENT | | | snd ACK | | | |------------------ -------------------| | &#43;---------&#43; rcv ACK of SYN \ / rcv SYN,ACK &#43;---------&#43; | -------------- | | ----------- | x | | snd ACK | V V | CLOSE &#43;---------&#43; | ------- | ESTAB | | snd FIN &#43;---------&#43; | CLOSE | | rcv FIN V ------- | | ------- &#43;---------&#43; snd FIN / \ snd ACK &#43;---------&#43; | FIN |&lt;----------------- ------------------&gt;| CLOSE | | WAIT-1 |------------------ | WAIT | &#43;---------&#43; rcv FIN \ &#43;---------&#43; | rcv ACK of FIN ------- | CLOSE | | -------------- snd ACK | ------- | V x V snd FIN V &#43;---------&#43; &#43;---------&#43; &#43;---------&#43; |FINWAIT-2| | CLOSING | | LAST-ACK| &#43;---------&#43; &#43;---------&#43; &#43;---------&#43; | rcv ACK of FIN | rcv ACK of FIN | | rcv FIN -------------- | Timeout=2MSL -------------- | | ------- x V ------------ x V \ snd ACK &#43;---------&#43;delete TCB &#43;---------&#43; ------------------------&gt;|TIME WAIT|------------------&gt;| CLOSED | &#43;---------&#43; &#43;---------&#43; "><meta itemprop="datePublished" content="2021-02-02T16:26:43+08:00" />
+<meta itemprop="dateModified" content="2021-02-02T16:26:43+08:00" />
+<meta itemprop="wordCount" content="276">
+<meta itemprop="keywords" content="" />
+  
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="输入url会发生什么"/>
+<meta name="twitter:description" content="输入URL后会发生什么  调用浏览器渲染引擎（譬如V8），解析网络请求，解析执行JS，UI后端渲染 从URL中解析域名，根据域名查询DNS  在浏览器DNS缓存中查询 在操作系统DNS缓存中搜索 系统Hosts文件中查询 向本地DNS服务器发起Query请求（UDP）   与Server进行TCP握手（&#43;TLS握手） 构造HTTP请求，填充上下文到HTTP头 发送HTTP请求，收到HTML页面作为响应 浏览器引擎解析响应，并渲染至界面，根据HTML文档中超链接再构造HTTP请求 发起获取页面资源的HTTP请求   三次握手  C: SYN-&gt; S: &lt;-SYN,ACK C: ACK-&gt;   四次挥手  FIN-&gt; &lt;-ACK &lt;-FIN,ACK ACK-&gt;   状态机图   &#43;---------&#43; ---------\ active OPEN | CLOSED | \ ----------- &#43;---------&#43;&lt;---------\ \ create TCB | ^ \ \ snd SYN passive OPEN | | CLOSE \ \ ------------ | | ---------- \ \ create TCB | | delete TCB \ \ V | \ \ &#43;---------&#43; CLOSE | \ | LISTEN | ---------- | | &#43;---------&#43; delete TCB | | rcv SYN | | SEND | | ----------- | | ------- | V &#43;---------&#43; snd SYN,ACK / \ snd SYN &#43;---------&#43; | |&lt;----------------- ------------------&gt;| | | SYN | rcv SYN | SYN | | RCVD |&lt;-----------------------------------------------| SENT | | | snd ACK | | | |------------------ -------------------| | &#43;---------&#43; rcv ACK of SYN \ / rcv SYN,ACK &#43;---------&#43; | -------------- | | ----------- | x | | snd ACK | V V | CLOSE &#43;---------&#43; | ------- | ESTAB | | snd FIN &#43;---------&#43; | CLOSE | | rcv FIN V ------- | | ------- &#43;---------&#43; snd FIN / \ snd ACK &#43;---------&#43; | FIN |&lt;----------------- ------------------&gt;| CLOSE | | WAIT-1 |------------------ | WAIT | &#43;---------&#43; rcv FIN \ &#43;---------&#43; | rcv ACK of FIN ------- | CLOSE | | -------------- snd ACK | ------- | V x V snd FIN V &#43;---------&#43; &#43;---------&#43; &#43;---------&#43; |FINWAIT-2| | CLOSING | | LAST-ACK| &#43;---------&#43; &#43;---------&#43; &#43;---------&#43; | rcv ACK of FIN | rcv ACK of FIN | | rcv FIN -------------- | Timeout=2MSL -------------- | | ------- x V ------------ x V \ snd ACK &#43;---------&#43;delete TCB &#43;---------&#43; ------------------------&gt;|TIME WAIT|------------------&gt;| CLOSED | &#43;---------&#43; &#43;---------&#43; "/>
+
+  
+  
+</head>
+
+
+  <body class="not-ready" data-menu="false">
+    <header class="header">
+  
+  <p class="logo">
+    <a class="site-name" href="https://Rush.vercel.app/">Rush.vercel.app</a><a class="btn-dark"></a>
+  </p>
+  
+
+  <script>
+    let bodyClx = document.body.classList;
+    let btnDark = document.querySelector('.btn-dark');
+    let sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+    let darkVal = localStorage.getItem('dark');
+
+    let setDark = (isDark) => {
+      bodyClx[isDark ? 'add' : 'remove']('dark');
+      localStorage.setItem('dark', isDark ? 'yes' : 'no');
+    };
+
+    setDark(darkVal ? darkVal === 'yes' : sysDark.matches);
+    requestAnimationFrame(() => bodyClx.remove('not-ready'));
+
+    btnDark.addEventListener('click', () => setDark(!bodyClx.contains('dark')));
+    sysDark.addEventListener('change', (event) => setDark(event.matches));
+  </script>
+
+  
+  
+
+  
+  <nav class="social">
+    
+    <a
+      class="github"
+      style="--url: url(./github.svg)"
+      href="https://github.com/https://github.com/Notsetup"
+      target="_blank"
+    ></a>
+    
+  </nav>
+  
+</header>
+
+
+    <main class="main">
+
+<article class="post-single">
+  <header class="post-title">
+    <p>
+      
+      <time>Feb 2, 2021</time>
+      
+      
+    </p>
+    <h1>输入url会发生什么</h1>
+  </header>
+  <section class="post-content"><h3 id="输入url后会发生什么">输入URL后会发生什么</h3>
+<ol>
+<li>调用浏览器渲染引擎（譬如V8），解析网络请求，解析执行JS，UI后端渲染</li>
+<li>从URL中解析域名，根据域名查询<a href="#dns">DNS</a>
+<ol>
+<li>在浏览器DNS缓存中查询</li>
+<li>在操作系统DNS缓存中搜索</li>
+<li>系统Hosts文件中查询</li>
+<li>向本地DNS服务器发起Query请求（UDP）</li>
+</ol>
+</li>
+<li>与Server进行<a href="#tcp">TCP</a>握手（+TLS握手）</li>
+<li>构造HTTP请求，填充上下文到HTTP头</li>
+<li>发送HTTP请求，收到HTML页面作为响应</li>
+<li>浏览器引擎解析响应，并渲染至界面，根据HTML文档中超链接再构造HTTP请求</li>
+<li>发起获取页面资源的HTTP请求</li>
+</ol>
+<!-- raw HTML omitted -->
+<!-- raw HTML omitted -->
+<ol>
+<li>三次握手
+<ol>
+<li>C: SYN-&gt;</li>
+<li>S: &lt;-SYN,ACK</li>
+<li>C: ACK-&gt;</li>
+</ol>
+</li>
+<li>四次挥手
+<ol>
+<li>FIN-&gt;</li>
+<li>&lt;-ACK</li>
+<li>&lt;-FIN,ACK</li>
+<li>ACK-&gt;</li>
+</ol>
+</li>
+<li>状态机图</li>
+</ol>
+<pre tabindex="0"><code>                              +---------+ ---------\      active OPEN
+                              |  CLOSED |            \    -----------
+                              +---------+&lt;---------\   \   create TCB
+                                |     ^              \   \  snd SYN
+                   passive OPEN |     |   CLOSE        \   \
+                   ------------ |     | ----------       \   \
+                    create TCB  |     | delete TCB         \   \
+                                V     |                      \   \
+                              +---------+            CLOSE    |    \
+                              |  LISTEN |          ---------- |     |
+                              +---------+          delete TCB |     |
+                   rcv SYN      |     |     SEND              |     |
+                  -----------   |     |    -------            |     V
+ +---------+      snd SYN,ACK  /       \   snd SYN          +---------+
+ |         |&lt;-----------------           ------------------&gt;|         |
+ |   SYN   |                    rcv SYN                     |   SYN   |
+ |   RCVD  |&lt;-----------------------------------------------|   SENT  |
+ |         |                    snd ACK                     |         |
+ |         |------------------           -------------------|         |
+ +---------+   rcv ACK of SYN  \       /  rcv SYN,ACK       +---------+
+   |           --------------   |     |   -----------
+   |                  x         |     |     snd ACK
+   |                            V     V
+   |  CLOSE                   +---------+
+   | -------                  |  ESTAB  |
+   | snd FIN                  +---------+
+   |                   CLOSE    |     |    rcv FIN
+   V                  -------   |     |    -------
+ +---------+          snd FIN  /       \   snd ACK          +---------+
+ |  FIN    |&lt;-----------------           ------------------&gt;|  CLOSE  |
+ | WAIT-1  |------------------                              |   WAIT  |
+ +---------+          rcv FIN  \                            +---------+
+   | rcv ACK of FIN   -------   |                            CLOSE  |
+   | --------------   snd ACK   |                           ------- |
+   V        x                   V                           snd FIN V
+ +---------+                  +---------+                   +---------+
+ |FINWAIT-2|                  | CLOSING |                   | LAST-ACK|
+ +---------+                  +---------+                   +---------+
+   |                rcv ACK of FIN |                 rcv ACK of FIN |
+   |  rcv FIN       -------------- |    Timeout=2MSL -------------- |
+   |  -------              x       V    ------------        x       V
+    \ snd ACK                 +---------+delete TCB         +---------+
+     ------------------------&gt;|TIME WAIT|------------------&gt;| CLOSED  |
+                              +---------+                   +---------+
+</code></pre></section>
+
+  
+  
+
+  
+  
+  
+  <nav class="post-nav">
+    
+    <a class="prev" href="https://Rush.vercel.app/posts/congestioncontrol/"><span>←</span><span>拥塞控制</span></a>
+     
+  </nav>
+  
+
+  
+  
+  <div id="disqus_thread" class="post-comments"></div>
+  <script>
+    var disqusShortname = 'bloger';
+    var script = document.createElement('script');
+    script.src = 'https://' + disqusShortname + '.disqus.com/embed.js';
+    script.setAttribute('data-timestamp', +new Date());
+    document.head.appendChild(script);
+  </script>
+  
+</article>
+
+</main>
+
+    <footer class="footer">
+  <p>&copy; 2022 <a href="https://Rush.vercel.app/">Rush.vercel.app</a></p>
+  <p>Powered by <a href="https://gohugo.io/" rel="noopener" target="_blank">Hugo️️</a>️</p>
+  <p>
+    <a href="https://github.com/nanxiaobei/hugo-paper" rel="noopener" target="_blank">Paper 5.1</a>
+  </p>
+</footer>
+
+  </body>
+</html>

@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html lang="en-us">
+  <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+  
+  <title>kube-state-metrics流程 - Rush.vercel.app</title>
+
+  
+  
+  <meta name="description" content="核心流程 在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分
+//main.go 168行 // Run MetricsHandler 	{ 	ctxMetricsHandler, cancel := context.WithCancel(ctx) 	g.Add(func() error { 	return m.Run(ctxMetricsHandler) 	}, func(error) { 	cancel() 	}) 	} //main.go 188行 // Run Telemetry server 	{ 	g.Add(func() error { 	klog.Infof(&#34;Starting kube-state-metrics self metrics server: %s&#34;, telemetryListenAddress) 	return web.ListenAndServe(&amp;telemetryServer, tlsConfig, promLogger) 	}, func(error) { 	ctxShutDown, cancel := context.WithTimeout(ctx, 3*time.Second) 	defer cancel() 	telemetryServer." />
+  <meta name="author" content="" />
+  
+
+  
+  
+  
+  
+  
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/app.min.css" />
+
+  
+  <link rel="preload stylesheet" as="style" href="https://Rush.vercel.app/an-old-hope.min.css" />
+  <script
+    defer
+    src="https://Rush.vercel.app/highlight.min.js"
+    onload="hljs.initHighlightingOnLoad();"
+  ></script>
+  
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/theme.png" />
+
+  
+  <link rel="preload" as="image" href="https://Rush.vercel.app/github.svg" />
+  
+
+  
+  <link rel="icon" href="https://Rush.vercel.app/favicon.ico" />
+  <link rel="apple-touch-icon" href="https://Rush.vercel.app/apple-touch-icon.png" />
+
+  
+  <meta name="generator" content="Hugo 0.100.0-DEV" />
+
+  
+  
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  <meta property="og:title" content="kube-state-metrics流程" />
+<meta property="og:description" content="核心流程 在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分
+//main.go 168行 // Run MetricsHandler 	{ 	ctxMetricsHandler, cancel := context.WithCancel(ctx) 	g.Add(func() error { 	return m.Run(ctxMetricsHandler) 	}, func(error) { 	cancel() 	}) 	} //main.go 188行 // Run Telemetry server 	{ 	g.Add(func() error { 	klog.Infof(&#34;Starting kube-state-metrics self metrics server: %s&#34;, telemetryListenAddress) 	return web.ListenAndServe(&amp;telemetryServer, tlsConfig, promLogger) 	}, func(error) { 	ctxShutDown, cancel := context.WithTimeout(ctx, 3*time.Second) 	defer cancel() 	telemetryServer." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://Rush.vercel.app/posts/ksm/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2021-05-05T16:17:11+08:00" />
+<meta property="article:modified_time" content="2021-05-05T16:17:11+08:00" />
+
+
+  
+  <meta itemprop="name" content="kube-state-metrics流程">
+<meta itemprop="description" content="核心流程 在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分
+//main.go 168行 // Run MetricsHandler 	{ 	ctxMetricsHandler, cancel := context.WithCancel(ctx) 	g.Add(func() error { 	return m.Run(ctxMetricsHandler) 	}, func(error) { 	cancel() 	}) 	} //main.go 188行 // Run Telemetry server 	{ 	g.Add(func() error { 	klog.Infof(&#34;Starting kube-state-metrics self metrics server: %s&#34;, telemetryListenAddress) 	return web.ListenAndServe(&amp;telemetryServer, tlsConfig, promLogger) 	}, func(error) { 	ctxShutDown, cancel := context.WithTimeout(ctx, 3*time.Second) 	defer cancel() 	telemetryServer."><meta itemprop="datePublished" content="2021-05-05T16:17:11+08:00" />
+<meta itemprop="dateModified" content="2021-05-05T16:17:11+08:00" />
+<meta itemprop="wordCount" content="1779">
+<meta itemprop="keywords" content="" />
+  
+  <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="kube-state-metrics流程"/>
+<meta name="twitter:description" content="核心流程 在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分
+//main.go 168行 // Run MetricsHandler 	{ 	ctxMetricsHandler, cancel := context.WithCancel(ctx) 	g.Add(func() error { 	return m.Run(ctxMetricsHandler) 	}, func(error) { 	cancel() 	}) 	} //main.go 188行 // Run Telemetry server 	{ 	g.Add(func() error { 	klog.Infof(&#34;Starting kube-state-metrics self metrics server: %s&#34;, telemetryListenAddress) 	return web.ListenAndServe(&amp;telemetryServer, tlsConfig, promLogger) 	}, func(error) { 	ctxShutDown, cancel := context.WithTimeout(ctx, 3*time.Second) 	defer cancel() 	telemetryServer."/>
+
+  
+  
+</head>
+
+
+  <body class="not-ready" data-menu="false">
+    <header class="header">
+  
+  <p class="logo">
+    <a class="site-name" href="https://Rush.vercel.app/">Rush.vercel.app</a><a class="btn-dark"></a>
+  </p>
+  
+
+  <script>
+    let bodyClx = document.body.classList;
+    let btnDark = document.querySelector('.btn-dark');
+    let sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+    let darkVal = localStorage.getItem('dark');
+
+    let setDark = (isDark) => {
+      bodyClx[isDark ? 'add' : 'remove']('dark');
+      localStorage.setItem('dark', isDark ? 'yes' : 'no');
+    };
+
+    setDark(darkVal ? darkVal === 'yes' : sysDark.matches);
+    requestAnimationFrame(() => bodyClx.remove('not-ready'));
+
+    btnDark.addEventListener('click', () => setDark(!bodyClx.contains('dark')));
+    sysDark.addEventListener('change', (event) => setDark(event.matches));
+  </script>
+
+  
+  
+
+  
+  <nav class="social">
+    
+    <a
+      class="github"
+      style="--url: url(./github.svg)"
+      href="https://github.com/https://github.com/Notsetup"
+      target="_blank"
+    ></a>
+    
+  </nav>
+  
+</header>
+
+
+    <main class="main">
+
+<article class="post-single">
+  <header class="post-title">
+    <p>
+      
+      <time>May 5, 2021</time>
+      
+      
+    </p>
+    <h1>kube-state-metrics流程</h1>
+  </header>
+  <section class="post-content"><h2 id="核心流程">核心流程</h2>
+<p>在ksm的main中有三块启动服务的代码，我们只关注获得metrics的部分</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//main.go 168行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// Run MetricsHandler
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">ctxMetricsHandler</span>, <span style="color:#a6e22e">cancel</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">WithCancel</span>(<span style="color:#a6e22e">ctx</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">g</span>.<span style="color:#a6e22e">Add</span>(<span style="color:#66d9ef">func</span>() <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">ctxMetricsHandler</span>)
+</span></span><span style="display:flex;"><span>		}, <span style="color:#66d9ef">func</span>(<span style="color:#66d9ef">error</span>) {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">cancel</span>()
+</span></span><span style="display:flex;"><span>		})
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//main.go 188行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// Run Telemetry server
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">g</span>.<span style="color:#a6e22e">Add</span>(<span style="color:#66d9ef">func</span>() <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Infof</span>(<span style="color:#e6db74">&#34;Starting kube-state-metrics self metrics server: %s&#34;</span>, <span style="color:#a6e22e">telemetryListenAddress</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">web</span>.<span style="color:#a6e22e">ListenAndServe</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">telemetryServer</span>, <span style="color:#a6e22e">tlsConfig</span>, <span style="color:#a6e22e">promLogger</span>)
+</span></span><span style="display:flex;"><span>		}, <span style="color:#66d9ef">func</span>(<span style="color:#66d9ef">error</span>) {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">ctxShutDown</span>, <span style="color:#a6e22e">cancel</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">WithTimeout</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#ae81ff">3</span><span style="color:#f92672">*</span><span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Second</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">cancel</span>()
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">telemetryServer</span>.<span style="color:#a6e22e">Shutdown</span>(<span style="color:#a6e22e">ctxShutDown</span>)
+</span></span><span style="display:flex;"><span>		})
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//main.go 199行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// Run Metrics server
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	{
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">g</span>.<span style="color:#a6e22e">Add</span>(<span style="color:#66d9ef">func</span>() <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Infof</span>(<span style="color:#e6db74">&#34;Starting metrics server: %s&#34;</span>, <span style="color:#a6e22e">metricsServerListenAddress</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">web</span>.<span style="color:#a6e22e">ListenAndServe</span>(<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">metricsServer</span>, <span style="color:#a6e22e">tlsConfig</span>, <span style="color:#a6e22e">promLogger</span>)
+</span></span><span style="display:flex;"><span>		}, <span style="color:#66d9ef">func</span>(<span style="color:#66d9ef">error</span>) {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">ctxShutDown</span>, <span style="color:#a6e22e">cancel</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">WithTimeout</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#ae81ff">3</span><span style="color:#f92672">*</span><span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Second</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">cancel</span>()
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">metricsServer</span>.<span style="color:#a6e22e">Shutdown</span>(<span style="color:#a6e22e">ctxShutDown</span>)
+</span></span><span style="display:flex;"><span>		})
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><p>其中暴露出<code>/metrics</code>接口的是第三块<code>Run Metrics server</code>部分的，他基于Go标准库启动了一个HTTP Server来通过Url方式暴露接口</p>
+<p>其HTTP Server定义如下</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-golang" data-lang="golang"><span style="display:flex;"><span><span style="color:#75715e">// main.go 180行	
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">telemetryMux</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">buildTelemetryServer</span>(<span style="color:#a6e22e">ksmMetricsRegistry</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">telemetryListenAddress</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">net</span>.<span style="color:#a6e22e">JoinHostPort</span>(<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">TelemetryHost</span>, <span style="color:#a6e22e">strconv</span>.<span style="color:#a6e22e">Itoa</span>(<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">TelemetryPort</span>))
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">telemetryServer</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Server</span>{<span style="color:#a6e22e">Handler</span>: <span style="color:#a6e22e">telemetryMux</span>, <span style="color:#a6e22e">Addr</span>: <span style="color:#a6e22e">telemetryListenAddress</span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">metricsMux</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">buildMetricsServer</span>(<span style="color:#a6e22e">m</span>, <span style="color:#a6e22e">durationVec</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">metricsServerListenAddress</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">net</span>.<span style="color:#a6e22e">JoinHostPort</span>(<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Host</span>, <span style="color:#a6e22e">strconv</span>.<span style="color:#a6e22e">Itoa</span>(<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Port</span>))
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">metricsServer</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Server</span>{<span style="color:#a6e22e">Handler</span>: <span style="color:#a6e22e">metricsMux</span>, <span style="color:#a6e22e">Addr</span>: <span style="color:#a6e22e">metricsServerListenAddress</span>}
+</span></span></code></pre></div><p>可以从buildMetricsServer中看到具体的HTTP接口定义</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//main.go 48行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">const</span> (
+</span></span><span style="display:flex;"><span>   <span style="color:#a6e22e">metricsPath</span> = <span style="color:#e6db74">&#34;/metrics&#34;</span>
+</span></span><span style="display:flex;"><span>   <span style="color:#a6e22e">healthzPath</span> = <span style="color:#e6db74">&#34;/healthz&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//main.go 271行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">buildMetricsServer</span>(<span style="color:#a6e22e">m</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">metricshandler</span>.<span style="color:#a6e22e">MetricsHandler</span>, <span style="color:#a6e22e">durationObserver</span> <span style="color:#a6e22e">prometheus</span>.<span style="color:#a6e22e">ObserverVec</span>) <span style="color:#f92672">*</span><span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">ServeMux</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mux</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">NewServeMux</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// TODO: This doesn&#39;t belong into serveMetrics
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">Handle</span>(<span style="color:#e6db74">&#34;/debug/pprof/&#34;</span>, <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">HandlerFunc</span>(<span style="color:#a6e22e">pprof</span>.<span style="color:#a6e22e">Index</span>))
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">Handle</span>(<span style="color:#e6db74">&#34;/debug/pprof/cmdline&#34;</span>, <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">HandlerFunc</span>(<span style="color:#a6e22e">pprof</span>.<span style="color:#a6e22e">Cmdline</span>))
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">Handle</span>(<span style="color:#e6db74">&#34;/debug/pprof/profile&#34;</span>, <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">HandlerFunc</span>(<span style="color:#a6e22e">pprof</span>.<span style="color:#a6e22e">Profile</span>))
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">Handle</span>(<span style="color:#e6db74">&#34;/debug/pprof/symbol&#34;</span>, <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">HandlerFunc</span>(<span style="color:#a6e22e">pprof</span>.<span style="color:#a6e22e">Symbol</span>))
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">Handle</span>(<span style="color:#e6db74">&#34;/debug/pprof/trace&#34;</span>, <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">HandlerFunc</span>(<span style="color:#a6e22e">pprof</span>.<span style="color:#a6e22e">Trace</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">Handle</span>(<span style="color:#a6e22e">metricsPath</span>, <span style="color:#a6e22e">promhttp</span>.<span style="color:#a6e22e">InstrumentHandlerDuration</span>(<span style="color:#a6e22e">durationObserver</span>, <span style="color:#a6e22e">m</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// Add healthzPath
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">HandleFunc</span>(<span style="color:#a6e22e">healthzPath</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">w</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">ResponseWriter</span>, <span style="color:#a6e22e">r</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Request</span>) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">WriteHeader</span>(<span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">StatusOK</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">Write</span>([]byte(<span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">StatusText</span>(<span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">StatusOK</span>)))
+</span></span><span style="display:flex;"><span>	})
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// Add index
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#a6e22e">mux</span>.<span style="color:#a6e22e">HandleFunc</span>(<span style="color:#e6db74">&#34;/&#34;</span>, <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">w</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">ResponseWriter</span>, <span style="color:#a6e22e">r</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Request</span>) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">Write</span>([]byte(<span style="color:#e6db74">`&lt;html&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">             &lt;head&gt;&lt;title&gt;Kube Metrics Server&lt;/title&gt;&lt;/head&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">             &lt;body&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">             &lt;h1&gt;Kube Metrics&lt;/h1&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">			 &lt;ul&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">             &lt;li&gt;&lt;a href=&#39;`</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">metricsPath</span> <span style="color:#f92672">+</span> <span style="color:#e6db74">`&#39;&gt;metrics&lt;/a&gt;&lt;/li&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">             &lt;li&gt;&lt;a href=&#39;`</span> <span style="color:#f92672">+</span> <span style="color:#a6e22e">healthzPath</span> <span style="color:#f92672">+</span> <span style="color:#e6db74">`&#39;&gt;healthz&lt;/a&gt;&lt;/li&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">			 &lt;/ul&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">             &lt;/body&gt;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">             &lt;/html&gt;`</span>))
+</span></span><span style="display:flex;"><span>	})
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">mux</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其Metrics的关键在于<code>mux.Handle(metricsPath,promhttp.InstrumentHandlerDuration(durationObserver, m))</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//prometheus/promhttp/instrument_server.go 44行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// InstrumentHandlerDuration is a middleware that wraps the provided
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// http.Handler to observe the request duration with the provided ObserverVec.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// The ObserverVec must have valid metric and label names and must have zero,
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// one, or two non-const non-curried labels. For those, the only allowed label
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// names are &#34;code&#34; and &#34;method&#34;. The function panics otherwise. The Observe
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// method of the Observer in the ObserverVec is called with the request duration
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// in seconds. Partitioning happens by HTTP status code and/or HTTP method if
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// the respective instance label names are present in the ObserverVec. For
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// unpartitioned observations, use an ObserverVec with zero labels. Note that
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// partitioning of Histograms is expensive and should be used judiciously.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// If the wrapped Handler does not set a status code, a status code of 200 is assumed.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// If the wrapped Handler panics, no values are reported.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// Note that this method is only guaranteed to never observe negative durations
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// if used with Go1.9+.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> <span style="color:#a6e22e">InstrumentHandlerDuration</span>(<span style="color:#a6e22e">obs</span> <span style="color:#a6e22e">prometheus</span>.<span style="color:#a6e22e">ObserverVec</span>, <span style="color:#a6e22e">next</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Handler</span>) <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">HandlerFunc</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">code</span>, <span style="color:#a6e22e">method</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">checkLabels</span>(<span style="color:#a6e22e">obs</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">code</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">HandlerFunc</span>(<span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">w</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">ResponseWriter</span>, <span style="color:#a6e22e">r</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Request</span>) {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">now</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Now</span>()
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">d</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">newDelegator</span>(<span style="color:#a6e22e">w</span>, <span style="color:#66d9ef">nil</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">next</span>.<span style="color:#a6e22e">ServeHTTP</span>(<span style="color:#a6e22e">d</span>, <span style="color:#a6e22e">r</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">obs</span>.<span style="color:#a6e22e">With</span>(<span style="color:#a6e22e">labels</span>(<span style="color:#a6e22e">code</span>, <span style="color:#a6e22e">method</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">Method</span>, <span style="color:#a6e22e">d</span>.<span style="color:#a6e22e">Status</span>())).<span style="color:#a6e22e">Observe</span>(<span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Since</span>(<span style="color:#a6e22e">now</span>).<span style="color:#a6e22e">Seconds</span>())
+</span></span><span style="display:flex;"><span>		})
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">HandlerFunc</span>(<span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">w</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">ResponseWriter</span>, <span style="color:#a6e22e">r</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Request</span>) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">now</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Now</span>()
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">next</span>.<span style="color:#a6e22e">ServeHTTP</span>(<span style="color:#a6e22e">w</span>, <span style="color:#a6e22e">r</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">obs</span>.<span style="color:#a6e22e">With</span>(<span style="color:#a6e22e">labels</span>(<span style="color:#a6e22e">code</span>, <span style="color:#a6e22e">method</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">Method</span>, <span style="color:#ae81ff">0</span>)).<span style="color:#a6e22e">Observe</span>(<span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Since</span>(<span style="color:#a6e22e">now</span>).<span style="color:#a6e22e">Seconds</span>())
+</span></span><span style="display:flex;"><span>	})
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>从注释和代码都可以看见，这是一个Go HTTP Server的中间件Handler的实现，核心功能在于<code>next.ServeHTTP</code></p>
+<p>处，next是通过参数传入的</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//main.go 162行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">m</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">metricshandler</span>.<span style="color:#a6e22e">New</span>(
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">opts</span>,
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">kubeClient</span>,
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">storeBuilder</span>,
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">EnableGZIPEncoding</span>,
+</span></span><span style="display:flex;"><span>	)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//pkg/metricshandler/metrics_handler.go 178行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// ServeHTTP implements the http.Handler interface. It writes the metrics in
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// its stores to the response body.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">m</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">MetricsHandler</span>) <span style="color:#a6e22e">ServeHTTP</span>(<span style="color:#a6e22e">w</span> <span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">ResponseWriter</span>, <span style="color:#a6e22e">r</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">http</span>.<span style="color:#a6e22e">Request</span>) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">mtx</span>.<span style="color:#a6e22e">RLock</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">mtx</span>.<span style="color:#a6e22e">RUnlock</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">resHeader</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">Header</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">var</span> <span style="color:#a6e22e">writer</span> <span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">Writer</span> = <span style="color:#a6e22e">w</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">resHeader</span>.<span style="color:#a6e22e">Set</span>(<span style="color:#e6db74">&#34;Content-Type&#34;</span>, <span style="color:#e6db74">`text/plain; version=`</span><span style="color:#f92672">+</span><span style="color:#e6db74">&#34;0.0.4&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">enableGZIPEncoding</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#75715e">// Gzip response if requested. Taken from
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>		<span style="color:#75715e">// github.com/prometheus/client_golang/prometheus/promhttp.decorateWriter.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>		<span style="color:#a6e22e">reqHeader</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">Header</span>.<span style="color:#a6e22e">Get</span>(<span style="color:#e6db74">&#34;Accept-Encoding&#34;</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">parts</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">Split</span>(<span style="color:#a6e22e">reqHeader</span>, <span style="color:#e6db74">&#34;,&#34;</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">part</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">parts</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">part</span> = <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">TrimSpace</span>(<span style="color:#a6e22e">part</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">part</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;gzip&#34;</span> <span style="color:#f92672">||</span> <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">HasPrefix</span>(<span style="color:#a6e22e">part</span>, <span style="color:#e6db74">&#34;gzip;&#34;</span>) {
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">writer</span> = <span style="color:#a6e22e">gzip</span>.<span style="color:#a6e22e">NewWriter</span>(<span style="color:#a6e22e">writer</span>)
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">resHeader</span>.<span style="color:#a6e22e">Set</span>(<span style="color:#e6db74">&#34;Content-Encoding&#34;</span>, <span style="color:#e6db74">&#34;gzip&#34;</span>)
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">s</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">stores</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">ms</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">s</span>.(<span style="color:#f92672">*</span><span style="color:#a6e22e">metricsstore</span>.<span style="color:#a6e22e">MetricsStore</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">ms</span>.<span style="color:#a6e22e">WriteAll</span>(<span style="color:#a6e22e">writer</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// In case we gzipped the response, we have to close the writer.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">closer</span>, <span style="color:#a6e22e">ok</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">writer</span>.(<span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">Closer</span>); <span style="color:#a6e22e">ok</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">closer</span>.<span style="color:#a6e22e">Close</span>()
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>从注释就可知，<code>/Metrics</code>响应体就是通过这一块写,核心是下面这一块代码</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">s</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">stores</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">ms</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">s</span>.(<span style="color:#f92672">*</span><span style="color:#a6e22e">metricsstore</span>.<span style="color:#a6e22e">MetricsStore</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">ms</span>.<span style="color:#a6e22e">WriteAll</span>(<span style="color:#a6e22e">writer</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//pkg/metrics_store/metrics_store.go 148行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// WriteAll writes all metrics of the store into the given writer, zipped with the
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// help text of each metric family.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">s</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">MetricsStore</span>) <span style="color:#a6e22e">WriteAll</span>(<span style="color:#a6e22e">w</span> <span style="color:#a6e22e">io</span>.<span style="color:#a6e22e">Writer</span>) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">mutex</span>.<span style="color:#a6e22e">RLock</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">mutex</span>.<span style="color:#a6e22e">RUnlock</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">i</span>, <span style="color:#a6e22e">help</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">headers</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">Write</span>([]byte(<span style="color:#a6e22e">help</span>))
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">Write</span>([]<span style="color:#66d9ef">byte</span>{<span style="color:#e6db74">&#39;\n&#39;</span>})
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">metricFamilies</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">s</span>.<span style="color:#a6e22e">metrics</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">Write</span>(<span style="color:#a6e22e">metricFamilies</span>[<span style="color:#a6e22e">i</span>])
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>从上述代码可知，数据都是从<code>m.stores</code>里来的，这个来自<code>ConfigureSharding</code>这个函数调用中</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//pkg/metricshandler/metrics_handler.go 69行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// ConfigureSharding (re-)configures sharding. Re-configuration can be done
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// concurrently.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">m</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">MetricsHandler</span>) <span style="color:#a6e22e">ConfigureSharding</span>(<span style="color:#a6e22e">ctx</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Context</span>, <span style="color:#a6e22e">shard</span> <span style="color:#66d9ef">int32</span>, <span style="color:#a6e22e">totalShards</span> <span style="color:#66d9ef">int</span>) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">mtx</span>.<span style="color:#a6e22e">Lock</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">mtx</span>.<span style="color:#a6e22e">Unlock</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">cancel</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">cancel</span>()
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">totalShards</span> <span style="color:#f92672">!=</span> <span style="color:#ae81ff">1</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Infof</span>(<span style="color:#e6db74">&#34;configuring sharding of this instance to be shard index %d (zero-indexed) out of %d total shards&#34;</span>, <span style="color:#a6e22e">shard</span>, <span style="color:#a6e22e">totalShards</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">cancel</span> = <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">WithCancel</span>(<span style="color:#a6e22e">ctx</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">storeBuilder</span>.<span style="color:#a6e22e">WithSharding</span>(<span style="color:#a6e22e">shard</span>, <span style="color:#a6e22e">totalShards</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">storeBuilder</span>.<span style="color:#a6e22e">WithContext</span>(<span style="color:#a6e22e">ctx</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">stores</span> = <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">storeBuilder</span>.<span style="color:#a6e22e">Build</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">curShard</span> = <span style="color:#a6e22e">shard</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">curTotalShards</span> = <span style="color:#a6e22e">totalShards</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这个函数调用于</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//pkg/metricshandler/metrics_handler.go 89行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// Run configures the MetricsHandler&#39;s sharding and if autosharding is enabled
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// re-configures sharding on re-sharding events. Run should only be called
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// once.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">m</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">MetricsHandler</span>) <span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">ctx</span> <span style="color:#a6e22e">context</span>.<span style="color:#a6e22e">Context</span>) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">autoSharding</span> <span style="color:#f92672">:=</span> len(<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Pod</span>) &gt; <span style="color:#ae81ff">0</span> <span style="color:#f92672">&amp;&amp;</span> len(<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Namespace</span>) &gt; <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> !<span style="color:#a6e22e">autoSharding</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Info</span>(<span style="color:#e6db74">&#34;Autosharding disabled&#34;</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">ConfigureSharding</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Shard</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">TotalShards</span>)
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Done</span>()
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Err</span>()
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Infof</span>(<span style="color:#e6db74">&#34;Autosharding enabled with pod=%v pod_namespace=%v&#34;</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Pod</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Namespace</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Infof</span>(<span style="color:#e6db74">&#34;Auto detecting sharding settings.&#34;</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">ss</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">detectStatefulSet</span>(<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">kubeClient</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Pod</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Namespace</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">errors</span>.<span style="color:#a6e22e">Wrap</span>(<span style="color:#a6e22e">err</span>, <span style="color:#e6db74">&#34;detect StatefulSet&#34;</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">statefulSetName</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">ss</span>.<span style="color:#a6e22e">Name</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">labelSelectorOptions</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">o</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">metav1</span>.<span style="color:#a6e22e">ListOptions</span>) {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">o</span>.<span style="color:#a6e22e">LabelSelector</span> = <span style="color:#a6e22e">fields</span>.<span style="color:#a6e22e">SelectorFromSet</span>(<span style="color:#a6e22e">ss</span>.<span style="color:#a6e22e">Labels</span>).<span style="color:#a6e22e">String</span>()
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">i</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">NewSharedIndexInformer</span>(
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">NewFilteredListWatchFromClient</span>(<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">kubeClient</span>.<span style="color:#a6e22e">AppsV1</span>().<span style="color:#a6e22e">RESTClient</span>(), <span style="color:#e6db74">&#34;statefulsets&#34;</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Namespace</span>, <span style="color:#a6e22e">labelSelectorOptions</span>),
+</span></span><span style="display:flex;"><span>		<span style="color:#f92672">&amp;</span><span style="color:#a6e22e">appsv1</span>.<span style="color:#a6e22e">StatefulSet</span>{}, <span style="color:#ae81ff">0</span>, <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Indexers</span>{<span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">NamespaceIndex</span>: <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">MetaNamespaceIndexFunc</span>},
+</span></span><span style="display:flex;"><span>	)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">i</span>.<span style="color:#a6e22e">AddEventHandler</span>(<span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">ResourceEventHandlerFuncs</span>{
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">AddFunc</span>: <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">o</span> <span style="color:#66d9ef">interface</span>{}) {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">ss</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">o</span>.(<span style="color:#f92672">*</span><span style="color:#a6e22e">appsv1</span>.<span style="color:#a6e22e">StatefulSet</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">ss</span>.<span style="color:#a6e22e">Name</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">statefulSetName</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">shard</span>, <span style="color:#a6e22e">totalShards</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">shardingSettingsFromStatefulSet</span>(<span style="color:#a6e22e">ss</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Pod</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;detect sharding settings from StatefulSet: %v&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">mtx</span>.<span style="color:#a6e22e">RLock</span>()
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">shardingUnchanged</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">curShard</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">shard</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">curTotalShards</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">totalShards</span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">mtx</span>.<span style="color:#a6e22e">RUnlock</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">shardingUnchanged</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">ConfigureSharding</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">shard</span>, <span style="color:#a6e22e">totalShards</span>)
+</span></span><span style="display:flex;"><span>		},
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">UpdateFunc</span>: <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">oldo</span>, <span style="color:#a6e22e">curo</span> <span style="color:#66d9ef">interface</span>{}) {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">old</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">oldo</span>.(<span style="color:#f92672">*</span><span style="color:#a6e22e">appsv1</span>.<span style="color:#a6e22e">StatefulSet</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">cur</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">curo</span>.(<span style="color:#f92672">*</span><span style="color:#a6e22e">appsv1</span>.<span style="color:#a6e22e">StatefulSet</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">cur</span>.<span style="color:#a6e22e">Name</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">statefulSetName</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">old</span>.<span style="color:#a6e22e">ResourceVersion</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">cur</span>.<span style="color:#a6e22e">ResourceVersion</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">shard</span>, <span style="color:#a6e22e">totalShards</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">shardingSettingsFromStatefulSet</span>(<span style="color:#a6e22e">cur</span>, <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">opts</span>.<span style="color:#a6e22e">Pod</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;detect sharding settings from StatefulSet: %v&#34;</span>, <span style="color:#a6e22e">err</span>)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">mtx</span>.<span style="color:#a6e22e">RLock</span>()
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">shardingUnchanged</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">curShard</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">shard</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">curTotalShards</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">totalShards</span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">mtx</span>.<span style="color:#a6e22e">RUnlock</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">shardingUnchanged</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">m</span>.<span style="color:#a6e22e">ConfigureSharding</span>(<span style="color:#a6e22e">ctx</span>, <span style="color:#a6e22e">shard</span>, <span style="color:#a6e22e">totalShards</span>)
+</span></span><span style="display:flex;"><span>		},
+</span></span><span style="display:flex;"><span>	})
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">go</span> <span style="color:#a6e22e">i</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Done</span>())
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> !<span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">WaitForCacheSync</span>(<span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Done</span>(), <span style="color:#a6e22e">i</span>.<span style="color:#a6e22e">HasSynced</span>) {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">errors</span>.<span style="color:#a6e22e">New</span>(<span style="color:#e6db74">&#34;waiting for informer cache to sync failed&#34;</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Done</span>()
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Err</span>()
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>而这个<code>Run</code>就是在上面一开始写过的<code>Run MetricsHandler</code>里面执行的</p>
+<p>我们看<code>m.stores = m.storeBuilder.Build()</code>里面</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">// internal/store/builder.go 153行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// Build initializes and registers all enabled stores.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">Build</span>() []<span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">allowDenyList</span> <span style="color:#f92672">==</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>		panic(<span style="color:#e6db74">&#34;allowDenyList should not be nil&#34;</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">stores</span> <span style="color:#f92672">:=</span> []<span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span>{}
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">activeStoreNames</span> <span style="color:#f92672">:=</span> []<span style="color:#66d9ef">string</span>{}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> <span style="color:#a6e22e">_</span>, <span style="color:#a6e22e">c</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">range</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">enabledResources</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">constructor</span>, <span style="color:#a6e22e">ok</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">availableStores</span>[<span style="color:#a6e22e">c</span>]
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">ok</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">store</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">constructor</span>(<span style="color:#a6e22e">b</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">activeStoreNames</span> = append(<span style="color:#a6e22e">activeStoreNames</span>, <span style="color:#a6e22e">c</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">stores</span> = append(<span style="color:#a6e22e">stores</span>, <span style="color:#a6e22e">store</span>)
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">Infof</span>(<span style="color:#e6db74">&#34;Active resources: %s&#34;</span>, <span style="color:#a6e22e">strings</span>.<span style="color:#a6e22e">Join</span>(<span style="color:#a6e22e">activeStoreNames</span>, <span style="color:#e6db74">&#34;,&#34;</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">stores</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>其关键点在于<code>constructor, ok := availableStores[c]</code>这是在同一个文件下176行定义的一个map</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#66d9ef">var</span> <span style="color:#a6e22e">availableStores</span> = <span style="color:#66d9ef">map</span>[<span style="color:#66d9ef">string</span>]<span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">f</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span>{
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;certificatesigningrequests&#34;</span>:      <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildCsrStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;configmaps&#34;</span>:                      <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildConfigMapStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;cronjobs&#34;</span>:                        <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildCronJobStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;daemonsets&#34;</span>:                      <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildDaemonSetStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;deployments&#34;</span>:                     <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildDeploymentStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;endpoints&#34;</span>:                       <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildEndpointsStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;horizontalpodautoscalers&#34;</span>:        <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildHPAStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;ingresses&#34;</span>:                       <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildIngressStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;jobs&#34;</span>:                            <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildJobStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;leases&#34;</span>:                          <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildLeases</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;limitranges&#34;</span>:                     <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildLimitRangeStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;mutatingwebhookconfigurations&#34;</span>:   <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildMutatingWebhookConfigurationStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;namespaces&#34;</span>:                      <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildNamespaceStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;networkpolicies&#34;</span>:                 <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildNetworkPolicyStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;nodes&#34;</span>:                           <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildNodeStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;persistentvolumeclaims&#34;</span>:          <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildPersistentVolumeClaimStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;persistentvolumes&#34;</span>:               <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildPersistentVolumeStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;poddisruptionbudgets&#34;</span>:            <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildPodDisruptionBudgetStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;pods&#34;</span>:                            <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildPodStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;replicasets&#34;</span>:                     <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildReplicaSetStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;replicationcontrollers&#34;</span>:          <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildReplicationControllerStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;resourcequotas&#34;</span>:                  <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildResourceQuotaStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;secrets&#34;</span>:                         <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildSecretStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;services&#34;</span>:                        <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildServiceStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;statefulsets&#34;</span>:                    <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildStatefulSetStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;storageclasses&#34;</span>:                  <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildStorageClassStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;validatingwebhookconfigurations&#34;</span>: <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildValidatingWebhookConfigurationStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;volumeattachments&#34;</span>:               <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildVolumeAttachmentStore</span>() },
+</span></span><span style="display:flex;"><span>	<span style="color:#e6db74">&#34;verticalpodautoscalers&#34;</span>:          <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">buildVPAStore</span>() },
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>因为Value里的函数定义了非常多，就不一一列举了，他们都是<code>buildStore</code>的多态实现</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//internal/store/builder.go 337行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">buildStore</span>(
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">metricFamilies</span> []<span style="color:#a6e22e">generator</span>.<span style="color:#a6e22e">FamilyGenerator</span>,
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">expectedType</span> <span style="color:#66d9ef">interface</span>{},
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">listWatchFunc</span> <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">kubeClient</span> <span style="color:#a6e22e">clientset</span>.<span style="color:#a6e22e">Interface</span>, <span style="color:#a6e22e">ns</span> <span style="color:#66d9ef">string</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">ListerWatcher</span>,
+</span></span><span style="display:flex;"><span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">metricFamilies</span> = <span style="color:#a6e22e">generator</span>.<span style="color:#a6e22e">FilterMetricFamilies</span>(<span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">allowDenyList</span>, <span style="color:#a6e22e">metricFamilies</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">composedMetricGenFuncs</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">generator</span>.<span style="color:#a6e22e">ComposeMetricGenFuncs</span>(<span style="color:#a6e22e">metricFamilies</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">familyHeaders</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">generator</span>.<span style="color:#a6e22e">ExtractMetricFamilyHeaders</span>(<span style="color:#a6e22e">metricFamilies</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">store</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">metricsstore</span>.<span style="color:#a6e22e">NewMetricsStore</span>(
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">familyHeaders</span>,
+</span></span><span style="display:flex;"><span>		<span style="color:#a6e22e">composedMetricGenFuncs</span>,
+</span></span><span style="display:flex;"><span>	)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">reflectorPerNamespace</span>(<span style="color:#a6e22e">expectedType</span>, <span style="color:#a6e22e">store</span>, <span style="color:#a6e22e">listWatchFunc</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">store</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这里边真正给store填充数据的，就是<code>b.reflectorPerNamespace(expectedType, store, listWatchFunc)</code></p>
+<p>这个函数将最终通过<code>&quot;k8s.io/client-go/tools/cache&quot;</code>下的<code>cache.NewReflector</code>把store传入k8s的reflector拿到最终数据</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//internal/store/builder.go 355行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// reflectorPerNamespace creates a Kubernetes client-go reflector with the given
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// listWatchFunc for each given namespace and registers it with the given store.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">b</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Builder</span>) <span style="color:#a6e22e">reflectorPerNamespace</span>(
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">expectedType</span> <span style="color:#66d9ef">interface</span>{},
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">store</span> <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">Store</span>,
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">listWatchFunc</span> <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">kubeClient</span> <span style="color:#a6e22e">clientset</span>.<span style="color:#a6e22e">Interface</span>, <span style="color:#a6e22e">ns</span> <span style="color:#66d9ef">string</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">ListerWatcher</span>,
+</span></span><span style="display:flex;"><span>) {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">lwf</span> <span style="color:#f92672">:=</span> <span style="color:#66d9ef">func</span>(<span style="color:#a6e22e">ns</span> <span style="color:#66d9ef">string</span>) <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">ListerWatcher</span> { <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">listWatchFunc</span>(<span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">kubeClient</span>, <span style="color:#a6e22e">ns</span>) }
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">lw</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">listwatch</span>.<span style="color:#a6e22e">MultiNamespaceListerWatcher</span>(<span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">namespaces</span>, <span style="color:#66d9ef">nil</span>, <span style="color:#a6e22e">lwf</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">instrumentedListWatch</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">NewInstrumentedListerWatcher</span>(<span style="color:#a6e22e">lw</span>, <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">listWatchMetrics</span>, <span style="color:#a6e22e">reflect</span>.<span style="color:#a6e22e">TypeOf</span>(<span style="color:#a6e22e">expectedType</span>).<span style="color:#a6e22e">String</span>())
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">reflector</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">cache</span>.<span style="color:#a6e22e">NewReflector</span>(<span style="color:#a6e22e">sharding</span>.<span style="color:#a6e22e">NewShardedListWatch</span>(<span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">shard</span>, <span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">totalShards</span>, <span style="color:#a6e22e">instrumentedListWatch</span>), <span style="color:#a6e22e">expectedType</span>, <span style="color:#a6e22e">store</span>, <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">go</span> <span style="color:#a6e22e">reflector</span>.<span style="color:#a6e22e">Run</span>(<span style="color:#a6e22e">b</span>.<span style="color:#a6e22e">ctx</span>.<span style="color:#a6e22e">Done</span>())
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>这里只例举下核心函数，可以看见<code>switch event.Type</code>中对event类型进行判断，使用store自己的api来对store增删改查。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-go" data-lang="go"><span style="display:flex;"><span><span style="color:#75715e">//k8s.io\client-go@v0.21.0\tools\cache\reflector.go 453行
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// watchHandler watches w and keeps *resourceVersion up to date.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">func</span> (<span style="color:#a6e22e">r</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">Reflector</span>) <span style="color:#a6e22e">watchHandler</span>(<span style="color:#a6e22e">start</span> <span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Time</span>, <span style="color:#a6e22e">w</span> <span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">Interface</span>, <span style="color:#a6e22e">resourceVersion</span> <span style="color:#f92672">*</span><span style="color:#66d9ef">string</span>, <span style="color:#a6e22e">errc</span> <span style="color:#66d9ef">chan</span> <span style="color:#66d9ef">error</span>, <span style="color:#a6e22e">stopCh</span> <span style="color:#f92672">&lt;-</span><span style="color:#66d9ef">chan</span> <span style="color:#66d9ef">struct</span>{}) <span style="color:#66d9ef">error</span> {
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">eventCount</span> <span style="color:#f92672">:=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// Stopping the watcher should be idempotent and if we return from this function there&#39;s no way
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#75715e">// we&#39;re coming back in with the same watch interface.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>	<span style="color:#66d9ef">defer</span> <span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">Stop</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">loop</span>:
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">for</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">select</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">case</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">stopCh</span>:
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">errorStopRequested</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">case</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">errc</span>:
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">err</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">case</span> <span style="color:#a6e22e">event</span>, <span style="color:#a6e22e">ok</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">&lt;-</span><span style="color:#a6e22e">w</span>.<span style="color:#a6e22e">ResultChan</span>():
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> !<span style="color:#a6e22e">ok</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">break</span> <span style="color:#a6e22e">loop</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Type</span> <span style="color:#f92672">==</span> <span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">Error</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">apierrors</span>.<span style="color:#a6e22e">FromObject</span>(<span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>)
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">expectedType</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">a</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">expectedType</span>, <span style="color:#a6e22e">reflect</span>.<span style="color:#a6e22e">TypeOf</span>(<span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>); <span style="color:#a6e22e">e</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">a</span> {
+</span></span><span style="display:flex;"><span>					<span style="color:#a6e22e">utilruntime</span>.<span style="color:#a6e22e">HandleError</span>(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;%s: expected type %v, but watch event object had type %v&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">a</span>))
+</span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">continue</span>
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">expectedGVK</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">a</span> <span style="color:#f92672">:=</span> <span style="color:#f92672">*</span><span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">expectedGVK</span>, <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>.<span style="color:#a6e22e">GetObjectKind</span>().<span style="color:#a6e22e">GroupVersionKind</span>(); <span style="color:#a6e22e">e</span> <span style="color:#f92672">!=</span> <span style="color:#a6e22e">a</span> {
+</span></span><span style="display:flex;"><span>					<span style="color:#a6e22e">utilruntime</span>.<span style="color:#a6e22e">HandleError</span>(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;%s: expected gvk %v, but watch event object had gvk %v&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">e</span>, <span style="color:#a6e22e">a</span>))
+</span></span><span style="display:flex;"><span>					<span style="color:#66d9ef">continue</span>
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">meta</span>, <span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">meta</span>.<span style="color:#a6e22e">Accessor</span>(<span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">utilruntime</span>.<span style="color:#a6e22e">HandleError</span>(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;%s: unable to understand watch event %#v&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">event</span>))
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">continue</span>
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">newResourceVersion</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">meta</span>.<span style="color:#a6e22e">GetResourceVersion</span>()
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">switch</span> <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Type</span> {
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> <span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">Added</span>:
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">store</span>.<span style="color:#a6e22e">Add</span>(<span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>					<span style="color:#a6e22e">utilruntime</span>.<span style="color:#a6e22e">HandleError</span>(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;%s: unable to add watch event object (%#v) to store: %v&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>, <span style="color:#a6e22e">err</span>))
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> <span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">Modified</span>:
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">store</span>.<span style="color:#a6e22e">Update</span>(<span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>					<span style="color:#a6e22e">utilruntime</span>.<span style="color:#a6e22e">HandleError</span>(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;%s: unable to update watch event object (%#v) to store: %v&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>, <span style="color:#a6e22e">err</span>))
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> <span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">Deleted</span>:
+</span></span><span style="display:flex;"><span>				<span style="color:#75715e">// TODO: Will any consumers need access to the &#34;last known
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>				<span style="color:#75715e">// state&#34;, which is passed in event.Object? If so, may need
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>				<span style="color:#75715e">// to change this.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>				<span style="color:#a6e22e">err</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">store</span>.<span style="color:#a6e22e">Delete</span>(<span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>)
+</span></span><span style="display:flex;"><span>				<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">err</span> <span style="color:#f92672">!=</span> <span style="color:#66d9ef">nil</span> {
+</span></span><span style="display:flex;"><span>					<span style="color:#a6e22e">utilruntime</span>.<span style="color:#a6e22e">HandleError</span>(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;%s: unable to delete watch event object (%#v) from store: %v&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">event</span>.<span style="color:#a6e22e">Object</span>, <span style="color:#a6e22e">err</span>))
+</span></span><span style="display:flex;"><span>				}
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">case</span> <span style="color:#a6e22e">watch</span>.<span style="color:#a6e22e">Bookmark</span>:
+</span></span><span style="display:flex;"><span>				<span style="color:#75715e">// A `Bookmark` means watch has synced here, just update the resourceVersion
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>			<span style="color:#66d9ef">default</span>:
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">utilruntime</span>.<span style="color:#a6e22e">HandleError</span>(<span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;%s: unable to understand watch event %#v&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">event</span>))
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#f92672">*</span><span style="color:#a6e22e">resourceVersion</span> = <span style="color:#a6e22e">newResourceVersion</span>
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">setLastSyncResourceVersion</span>(<span style="color:#a6e22e">newResourceVersion</span>)
+</span></span><span style="display:flex;"><span>			<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">rvu</span>, <span style="color:#a6e22e">ok</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">store</span>.(<span style="color:#a6e22e">ResourceVersionUpdater</span>); <span style="color:#a6e22e">ok</span> {
+</span></span><span style="display:flex;"><span>				<span style="color:#a6e22e">rvu</span>.<span style="color:#a6e22e">UpdateResourceVersion</span>(<span style="color:#a6e22e">newResourceVersion</span>)
+</span></span><span style="display:flex;"><span>			}
+</span></span><span style="display:flex;"><span>			<span style="color:#a6e22e">eventCount</span><span style="color:#f92672">++</span>
+</span></span><span style="display:flex;"><span>		}
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">watchDuration</span> <span style="color:#f92672">:=</span> <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">clock</span>.<span style="color:#a6e22e">Since</span>(<span style="color:#a6e22e">start</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">if</span> <span style="color:#a6e22e">watchDuration</span> &lt; <span style="color:#ae81ff">1</span><span style="color:#f92672">*</span><span style="color:#a6e22e">time</span>.<span style="color:#a6e22e">Second</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#a6e22e">eventCount</span> <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span> {
+</span></span><span style="display:flex;"><span>		<span style="color:#66d9ef">return</span> <span style="color:#a6e22e">fmt</span>.<span style="color:#a6e22e">Errorf</span>(<span style="color:#e6db74">&#34;very short watch: %s: Unexpected watch close - watch lasted less than a second and no items received&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>)
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>	<span style="color:#a6e22e">klog</span>.<span style="color:#a6e22e">V</span>(<span style="color:#ae81ff">4</span>).<span style="color:#a6e22e">Infof</span>(<span style="color:#e6db74">&#34;%s: Watch close - %v total %v items received&#34;</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">name</span>, <span style="color:#a6e22e">r</span>.<span style="color:#a6e22e">expectedTypeName</span>, <span style="color:#a6e22e">eventCount</span>)
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nil</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="结论">结论</h2>
+<p>从代码可知，关键就在于自身对store的实现，datadog-agent中也是对store和builder接口进行实现进行了自定义。</p>
+<h2 id="流程图">流程图</h2>
+<p><img src="/ksm.png" alt="ksm"></p>
+</section>
+
+  
+  
+
+  
+  
+  
+  <nav class="post-nav">
+     
+    <a class="next" href="https://Rush.vercel.app/posts/tfo-3way/"><span>TCP FAST OPEN看三次握手</span><span>→</span></a>
+    
+  </nav>
+  
+
+  
+  
+  <div id="disqus_thread" class="post-comments"></div>
+  <script>
+    var disqusShortname = 'bloger';
+    var script = document.createElement('script');
+    script.src = 'https://' + disqusShortname + '.disqus.com/embed.js';
+    script.setAttribute('data-timestamp', +new Date());
+    document.head.appendChild(script);
+  </script>
+  
+</article>
+
+</main>
+
+    <footer class="footer">
+  <p>&copy; 2022 <a href="https://Rush.vercel.app/">Rush.vercel.app</a></p>
+  <p>Powered by <a href="https://gohugo.io/" rel="noopener" target="_blank">Hugo️️</a>️</p>
+  <p>
+    <a href="https://github.com/nanxiaobei/hugo-paper" rel="noopener" target="_blank">Paper 5.1</a>
+  </p>
+</footer>
+
+  </body>
+</html>
