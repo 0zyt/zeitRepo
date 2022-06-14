@@ -29,6 +29,9 @@
     <loc>https://Rush.vercel.app/posts/enterurl/</loc>
     <lastmod>2021-02-02T16:26:43+08:00</lastmod>
   </url><url>
+    <loc>https://Rush.vercel.app/about/</loc>
+    <priority>0</priority>
+  </url><url>
     <loc>https://Rush.vercel.app/categories/</loc>
   </url><url>
     <loc>https://Rush.vercel.app/tags/</loc>
